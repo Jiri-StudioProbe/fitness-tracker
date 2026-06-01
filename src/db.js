@@ -35,7 +35,7 @@ function tx(storeName, mode, fn) {
 }
 
 export const db = {
-  savePlan: plan => tx('plan', 'readwrite', s => s.put(plan)),
+  savePlan: plan => tx('plan', 'readwrite', s => s.put({ ...plan, id: plan.plan.id })),
   loadPlan: id => tx('plan', 'readonly', s => s.get(id)),
   getAllPlans: () => open().then(db => new Promise((resolve, reject) => {
     const t = db.transaction('plan', 'readonly')
