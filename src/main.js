@@ -98,12 +98,18 @@ function renderNoplan(container) {
     const file = e.target.files[0]
     if (!file) return
     try {
-      const raw = JSON.parse(await file.text())
+      const text = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = ev => resolve(ev.target.result)
+        reader.onerror = () => reject(reader.error)
+        reader.readAsText(file)
+      })
+      const raw = JSON.parse(text)
       await db.savePlan(raw)
       state.plan = raw
       render()
-    } catch {
-      alert('Could not read file.')
+    } catch (err) {
+      alert('Could not read file: ' + err.message)
     }
   })
   container.appendChild(el)

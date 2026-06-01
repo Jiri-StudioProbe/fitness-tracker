@@ -1,6 +1,15 @@
 import { validatePlan, applyRepair } from '../plan.js'
 import { db } from '../db.js'
 
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = e => resolve(e.target.result)
+    reader.onerror = () => reject(new Error('FileReader error: ' + reader.error?.message))
+    reader.readAsText(file)
+  })
+}
+
 export function renderSettingsView({ plan, onPlanLoaded }) {
   const el = document.createElement('div')
   el.className = 'screen'
@@ -56,7 +65,7 @@ export function renderSettingsView({ plan, onPlanLoaded }) {
     const file = e.target.files[0]
     if (!file) return
     try {
-      const text = await file.text()
+      const text = await readFileAsText(file)
       const raw = JSON.parse(text)
       const { valid, errors } = validatePlan(raw)
       if (valid) {
@@ -70,7 +79,7 @@ export function renderSettingsView({ plan, onPlanLoaded }) {
     } catch (err) {
       el.querySelector('#repair-area').innerHTML = `
         <div class="banner" style="margin-top:12px;border-color:var(--danger);color:var(--danger)">
-          Could not parse file: ${err.message}
+          ${err instanceof SyntaxError ? 'Invalid JSON: ' : 'Could not read file: '}${err.message}
         </div>
       `
     }
@@ -92,7 +101,7 @@ export function renderSettingsView({ plan, onPlanLoaded }) {
     const file = e.target.files[0]
     if (!file) return
     try {
-      const text = await file.text()
+      const text = await readFileAsText(file)
       const data = JSON.parse(text)
       await db.importAll(data)
       // reload the latest plan
