@@ -27,9 +27,11 @@ async function init() {
   const days = await db.getAllDays()
   state.dayRecords = Object.fromEntries(days.map(d => [d.date, d]))
 
-  // Restore last viewed week
+  // Restore last viewed week — only trust it if it's actually a Monday
   const savedWeek = await db.getMeta('currentWeek')
-  if (savedWeek) state.currentWeek = savedWeek
+  if (savedWeek && new Date(savedWeek + 'T00:00:00').getDay() === 1) {
+    state.currentWeek = savedWeek
+  }
 
   render()
 }

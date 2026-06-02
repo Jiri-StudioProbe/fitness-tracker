@@ -37,9 +37,12 @@
       "log": {
         "type": "single",
         "track": ["distance"],
+        "exerciseLabel": "Arm finisher — superset × 2",
         "exercises": [
-          { "name": "Bicep curl",       "repRange": [10, 12], "defaultSets": 3, "track": ["weight", "reps"] },
-          { "name": "Tricep pushdown",  "repRange": [12, 15], "defaultSets": 3, "track": ["reps"] }
+          { "name": "DB lateral raise", "repRange": [12, 15], "defaultSets": 2, "track": ["weight", "reps"] },
+          { "name": "Bicep curl",       "repRange": [10, 12], "defaultSets": 2, "track": ["weight", "reps"] },
+          { "name": "Hammer curl",      "repRange": [10, 12], "defaultSets": 2, "track": ["weight", "reps"] },
+          { "name": "Rear delt fly",    "repRange": [10, 12], "defaultSets": 2, "track": ["weight", "reps"] }
         ]
       }
     },
