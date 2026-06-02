@@ -1,0 +1,106 @@
+{
+  "plan": {
+    "id": "jiri-v3",
+    "title": "Training Plan — Jiri (v3)",
+    "startDate": "2026-06-01",
+    "endDate": "2026-07-20",
+    "weekStartsOn": "monday",
+    "weeklyTargetSessions": 5,
+    "rowBackbonePerWeek": 1
+  },
+
+  "sessionTypes": [
+    {
+      "id": "push",
+      "name": "Push session",
+      "location": "Home (dumbbells)",
+      "tags": { "intensity": "hard", "modality": "push", "focus": "upper" },
+      "isLoadingSession": true,
+      "log": {
+        "type": "sets",
+        "exercises": [
+          { "name": "DB overhead press",            "repRange": [8, 10],  "defaultSets": 3, "track": ["weight", "reps"] },
+          { "name": "DB lateral raise",             "repRange": [12, 15], "defaultSets": 3, "track": ["weight", "reps"] },
+          { "name": "Push-ups / DB floor press",    "repRange": [8, 10],  "defaultSets": 3, "track": ["reps"] },
+          { "name": "DB overhead triceps extension","repRange": [10, 12], "defaultSets": 3, "track": ["weight", "reps"] },
+          { "name": "Plank",                        "target": "40–60s",   "defaultSets": 2, "track": ["done"] },
+          { "name": "Dead bug",                     "target": "10 / side","defaultSets": 2, "track": ["done"] }
+        ]
+      }
+    },
+    {
+      "id": "row",
+      "name": "Row + arm finisher",
+      "location": "Gym",
+      "tags": { "intensity": "hard", "modality": "row", "focus": "whole" },
+      "isLoadingSession": true,
+      "log": {
+        "type": "single",
+        "track": ["distance"],
+        "exercises": [
+          { "name": "Bicep curl",       "repRange": [10, 12], "defaultSets": 3, "track": ["weight", "reps"] },
+          { "name": "Tricep pushdown",  "repRange": [12, 15], "defaultSets": 3, "track": ["reps"] }
+        ]
+      }
+    },
+    {
+      "id": "swim",
+      "name": "Swim",
+      "location": "Pool",
+      "tags": { "intensity": "medium", "modality": "swim" },
+      "log": { "type": "single", "track": ["lengths"] }
+    },
+    {
+      "id": "easy-run",
+      "name": "Easy 5k run",
+      "location": "Outdoor",
+      "tags": { "intensity": "easy", "modality": "run" },
+      "log": { "type": "completion" }
+    },
+    {
+      "id": "long-run",
+      "name": "Long run",
+      "location": "Outdoor",
+      "tags": { "intensity": "hard", "modality": "run" },
+      "isLoadingSession": true,
+      "log": { "type": "completion" }
+    },
+    {
+      "id": "optional-easy",
+      "name": "Optional easy row/swim",
+      "location": "Gym / pool",
+      "optional": true,
+      "tags": { "intensity": "easy" },
+      "log": { "type": "completion" }
+    },
+    {
+      "id": "rest",
+      "name": "Rest",
+      "isRest": true
+    }
+  ],
+
+  "recommendations": [
+    { "type": "noConsecutiveByTag", "tag": "intensity", "value": "hard" },
+    { "type": "noConsecutiveByTag", "tag": "modality", "value": "run" },
+    { "type": "restAfterHard" },
+    { "type": "minPerWeek", "session": "row", "count": 1, "label": "Row backbone" }
+  ],
+
+  "phases": [
+    { "name": "Re-entry", "dateRange": ["2026-06-01", "2026-06-14"] },
+    { "name": "Build", "dateRange": ["2026-06-15", "2026-07-05"] },
+    { "name": "Sharpen", "dateRange": ["2026-07-06", "2026-07-20"] }
+  ],
+
+  "supplements": [
+    { "name": "Collagen + vitamin C", "dose": "15g", "schedule": "preLoadingSession", "offsetMin": -60 },
+    { "name": "Protein shake", "dose": "20–30g", "schedule": "postLoadingSession" },
+    { "name": "Creatine", "dose": "5g", "schedule": "daily" },
+    { "name": "Omega-3", "dose": "2–3g", "schedule": "daily" },
+    { "name": "Magnesium glycinate", "dose": "200–400mg", "schedule": "daily" },
+    { "name": "Vitamin D3", "dose": "1000–2000 IU", "schedule": "daily" }
+  ],
+
+  "fasting": { "enabled": true, "window": { "start": "19:00", "end": "11:00" } }
+}

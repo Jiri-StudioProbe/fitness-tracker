@@ -239,7 +239,9 @@ function renderLogDetail(session, state) {
       <div class="log-section">
         <div class="section-label">Log (optional)</div>
         ${exercises.map((ex, i) => {
-          const sets = state.detail?.exercises?.[ex.name] ?? [{ weight: '', reps: '' }]
+          const defaultCount = ex.defaultSets ?? 1
+          const emptySet = ex.track?.includes('done') ? { done: false } : { weight: '', reps: '' }
+          const sets = state.detail?.exercises?.[ex.name] ?? Array.from({ length: defaultCount }, () => ({ ...emptySet }))
           const tracksWeight = ex.track?.includes('weight')
           const tracksReps = ex.track?.includes('reps')
           const tracksDone = ex.track?.includes('done')
@@ -282,6 +284,7 @@ function renderLogDetail(session, state) {
   if (session.log.type === 'single') {
     const tracksDistance = session.log.track?.includes('distance')
     const tracksLengths = session.log.track?.includes('lengths')
+    const exercises = session.log.exercises ?? []
 
     return `
       <div class="log-section">
@@ -298,6 +301,45 @@ function renderLogDetail(session, state) {
             <span class="metric-unit">lengths</span>
           ` : ''}
         </div>
+        ${exercises.map((ex, i) => {
+          const defaultCount = ex.defaultSets ?? 1
+          const emptySet = ex.track?.includes('done') ? { done: false } : { weight: '', reps: '' }
+          const sets = state.detail?.exercises?.[ex.name] ?? Array.from({ length: defaultCount }, () => ({ ...emptySet }))
+          const tracksWeight = ex.track?.includes('weight')
+          const tracksReps = ex.track?.includes('reps')
+          const tracksDone = ex.track?.includes('done')
+
+          return `
+            <div class="exercise-row">
+              <div class="exercise-name">${escHtml(ex.name)}</div>
+              ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
+              ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
+              ${tracksDone ? `
+                <label class="flex items-center gap-8" style="cursor:pointer">
+                  <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" style="width:18px;height:18px;accent-color:var(--accent)" />
+                  <span class="text-sm text-muted">Done</span>
+                </label>
+              ` : `
+                <div class="sets-row">
+                  ${sets.map((set, si) => `
+                    <div class="set-input-group">
+                      ${tracksWeight ? `
+                        <input type="number" class="set-input set-weight" inputmode="decimal" placeholder="—" value="${escHtml(set.weight ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
+                        <span class="set-input-label">kg</span>
+                        <span class="set-input-label" style="margin:0 2px">×</span>
+                      ` : ''}
+                      ${tracksReps ? `
+                        <input type="number" class="set-input set-reps" inputmode="numeric" placeholder="—" value="${escHtml(set.reps ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
+                        <span class="set-input-label">reps</span>
+                      ` : ''}
+                    </div>
+                  `).join('')}
+                  <button class="add-set-btn" data-ex="${escHtml(ex.name)}">+ Set</button>
+                </div>
+              `}
+            </div>
+          `
+        }).join('')}
       </div>
     `
   }
