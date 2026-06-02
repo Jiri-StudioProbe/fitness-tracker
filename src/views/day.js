@@ -58,7 +58,8 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         <div>
           <div class="section-label" style="margin-bottom:8px">Activity</div>
           <div class="session-list" id="session-list">
-            ${recs.map(({ session, flags, recommended }) => renderSessionOption(session, flags, state)).join('')}
+            ${[...recs].sort((a, b) => a.flags.length - b.flags.length)
+              .map(({ session, flags }) => renderSessionOption(session, flags, state)).join('')}
           </div>
 
           ${state.activityType === 'custom' ? `

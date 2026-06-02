@@ -5,6 +5,7 @@ import { weekStats } from './engine.js'
 import { renderWeekView } from './views/week.js'
 import { renderDaySheet } from './views/day.js'
 import { renderSettingsView } from './views/settings.js'
+import { renderProgressView } from './views/progress.js'
 
 const app = document.getElementById('app')
 
@@ -64,6 +65,9 @@ function render() {
       },
     })
     main.appendChild(view)
+  } else if (state.tab === 'progress') {
+    const view = renderProgressView({ plan: state.plan, dayRecords: state.dayRecords })
+    main.appendChild(view)
   } else if (state.tab === 'settings') {
     const view = renderSettingsView({
       plan: state.plan,
@@ -122,6 +126,10 @@ function renderNavTabs() {
     <button class="nav-tab ${state.tab === 'week' ? 'active' : ''}" data-tab="week">
       <span class="nav-tab-icon">📅</span>
       <span class="nav-tab-label">Week</span>
+    </button>
+    <button class="nav-tab ${state.tab === 'progress' ? 'active' : ''}" data-tab="progress">
+      <span class="nav-tab-icon">📈</span>
+      <span class="nav-tab-label">Progress</span>
     </button>
     <button class="nav-tab ${state.tab === 'settings' ? 'active' : ''}" data-tab="settings">
       <span class="nav-tab-icon">⚙️</span>
