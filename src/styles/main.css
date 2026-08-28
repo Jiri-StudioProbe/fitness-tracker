@@ -620,6 +620,78 @@ html, body {
   flex-shrink: 0;
 }
 
+/* ── Guided one-set-at-a-time flow ── */
+.flow-screen {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 62vh;
+  gap: 24px;
+}
+
+.flow-top {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.flow-progress {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.flow-exercise-name {
+  font-size: 30px;
+  font-weight: 300;
+  color: var(--text);
+}
+
+.flow-set-label {
+  font-size: 18px;
+  color: var(--accent);
+}
+
+.flow-input-group {
+  margin-top: 20px;
+  min-height: 96px;
+  padding: 24px;
+}
+
+.flow-input {
+  font-size: 44px;
+}
+
+.flow-done-btn {
+  margin-top: 20px;
+  width: 100%;
+  min-height: 96px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 300;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.flow-done-btn.checked {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.flow-nav {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.flow-back-btn { flex: 0 0 auto; min-width: 100px; }
+.flow-next-btn { flex: 1; }
+
 /* ── Supplements ── */
 .supplement-list {
   display: flex;
