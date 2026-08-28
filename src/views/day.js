@@ -15,11 +15,9 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
 
   const overlay = document.createElement('div')
   overlay.className = 'sheet-overlay'
-  overlay.addEventListener('click', e => { if (e.target === overlay) onClose() })
 
   const sheet = document.createElement('div')
   sheet.className = 'sheet'
-  sheet.addEventListener('click', e => e.stopPropagation())
 
   const state = {
     activityId: record.activityId ?? null,
@@ -34,6 +32,9 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     pickerOpen: !(record.activityId || record.activityType),
     // Guided one-set-at-a-time log flow. null when not active.
     flow: null,
+    // Whether the Activity Log page (its own full page, opened from the
+    // Day page) is showing.
+    logOpen: false,
   }
 
   function currentSession() {
@@ -54,20 +55,22 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
   function render() {
     const session = currentSession()
     const supplements = getSupplementsForDay(plan, state.activityId)
+    const logApplicable = !!(session?.log && session.log.type !== 'completion')
 
     sheet.innerHTML = `
-      <div class="sheet-handle"></div>
       <div class="sheet-header">
         <div class="flex items-center justify-between">
-          <span class="sheet-title">${dayName(date)}, ${parseInt(date.slice(8), 10)}/${parseInt(date.slice(5, 7), 10)}</span>
+          <span class="sheet-title">${state.logOpen
+            ? escHtml(state.activityLabel ?? 'Log')
+            : `${dayName(date)}, ${parseInt(date.slice(8), 10)}/${parseInt(date.slice(5, 7), 10)}`}</span>
           <button class="btn-icon" id="close-btn">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           </button>
         </div>
-        ${!state.flow && state.completed ? '<span class="phase-pill text-accent" style="border-color:var(--accent);background:var(--accent-dim)">Completed ✓</span>' : ''}
+        ${!state.logOpen && state.completed ? '<span class="phase-pill text-accent" style="border-color:var(--accent);background:var(--accent-dim)">Completed ✓</span>' : ''}
       </div>
       <div class="sheet-body">
-        ${state.flow ? (session ? renderLogDetail(session, state) : '') : `
+        ${state.logOpen ? (session ? renderLogDetail(session, state) : '') : `
 
           <!-- Activity picker -->
           <div>
@@ -84,8 +87,13 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
             ` : ''}
           </div>
 
-          <!-- Log detail -->
-          ${session ? renderLogDetail(session, state) : ''}
+          <!-- Activity log entry point — its own full page -->
+          ${logApplicable ? `
+            <div class="log-section">
+              <div class="section-label">Log (optional)</div>
+              <button class="btn btn-ghost btn-full" id="open-log">Open activity log ›</button>
+            </div>
+          ` : ''}
 
           <!-- Supplements -->
           ${supplements.length > 0 ? renderSupplements(supplements, state) : ''}
@@ -108,14 +116,25 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
 
     // Bind events
     sheet.querySelector('#close-btn').addEventListener('click', () => {
-      // Exiting the guided flow drops back to the glanceable view instead
-      // of closing the whole sheet — whatever was entered stays saved.
+      // Three levels deep, closest first: exiting the guided flow drops
+      // back to the Activity Log page's glanceable view; closing the
+      // Activity Log page drops back to the Day page; closing the Day
+      // page returns to the Week page. Nothing entered is lost at any
+      // level — each is just a view state, not a discard.
       if (state.flow) {
         state.flow = null
+        render()
+      } else if (state.logOpen) {
+        state.logOpen = false
         render()
       } else {
         save(false)
       }
+    })
+
+    sheet.querySelector('#open-log')?.addEventListener('click', () => {
+      state.logOpen = true
+      render()
     })
 
     sheet.querySelector('#session-list')?.addEventListener('click', e => {

@@ -356,37 +356,27 @@ html, body {
   color: var(--muted);
 }
 
-/* ── Day sheet (bottom sheet) ── */
+/* ── Day / Activity Log page (full page, not a modal) ── */
 .sheet-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: var(--bg);
   z-index: 100;
   display: flex;
-  align-items: flex-end;
   animation: fade-in 0.2s ease;
 }
 
 .sheet {
   width: 100%;
+  height: 100dvh;
   background: var(--surface);
-  border-radius: var(--radius) var(--radius) 0 0;
   padding: 0 0 calc(24px + var(--safe-bot));
-  max-height: 92dvh;
   overflow-y: auto;
-  animation: slide-up 0.3s cubic-bezier(0.32,0.72,0,1);
-}
-
-.sheet-handle {
-  width: 36px;
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  margin: 12px auto 0;
+  animation: slide-up 0.25s cubic-bezier(0.32,0.72,0,1);
 }
 
 .sheet-header {
-  padding: 16px 20px 0;
+  padding: calc(16px + var(--safe-top)) 20px 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
