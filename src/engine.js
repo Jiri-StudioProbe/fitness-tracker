@@ -47,9 +47,6 @@ export function recommendDay(plan, dayRecords, targetDate) {
     })
   }
 
-  // Custom activity entry (always neutral)
-  results.push({ session: { id: '__custom__', name: 'Custom activity' }, flags: [], recommended: true })
-
   return results
 }
 

@@ -391,7 +391,7 @@ html, body {
 }
 
 .sheet-title {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--text);
 }
@@ -441,7 +441,7 @@ html, body {
 }
 
 .session-option-name {
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 500;
   color: var(--text);
   flex: 1;
@@ -453,11 +453,6 @@ html, body {
   font-size: 13px;
   color: var(--muted);
   text-align: right;
-}
-
-.session-location {
-  font-size: 13px;
-  color: var(--muted);
 }
 
 /* ── Log detail ── */
