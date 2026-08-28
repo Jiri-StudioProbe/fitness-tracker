@@ -210,7 +210,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     // Guided flow: start / navigate
     sheet.querySelector('#start-flow')?.addEventListener('click', () => {
       const exercises = session?.log?.exercises ?? []
-      const steps = buildFlowSteps(exercises)
+      const steps = buildFlowSteps(exercises, session?.log?.order)
       if (steps.length === 0) return
       state.flow = { steps, stepIndex: firstIncompleteStepIndex(steps, state) }
       render()
@@ -334,18 +334,31 @@ function renderSessionOption(session, flags, state) {
 
 // ── Guided one-set-at-a-time flow ──────────────────────────────────────
 // Each exercise contributes one step per set (or a single step for
-// done/checkbox-tracked exercises like Plank).
+// done/checkbox-tracked exercises like Plank). Order comes from the
+// plan JSON's log.order:
+//   'sequential' (default) — all sets of exercise 1, then exercise 2, ...
+//   'circuit'              — set 1 of every exercise, then set 2, ... —
+//                             for supersets/circuits done as rounds.
 
-function buildFlowSteps(exercises) {
+function buildFlowSteps(exercises, order = 'sequential') {
+  const setCount = ex => ex.track?.includes('done') ? 1 : (ex.defaultSets ?? 1)
+  const kindOf = ex => ex.track?.includes('done') ? 'done' : 'value'
+
+  if (order === 'circuit') {
+    const steps = []
+    const rounds = Math.max(1, ...exercises.map(setCount))
+    for (let round = 0; round < rounds; round++) {
+      for (const ex of exercises) {
+        if (round < setCount(ex)) steps.push({ ex, setIndex: round, kind: kindOf(ex) })
+      }
+    }
+    return steps
+  }
+
   const steps = []
   for (const ex of exercises) {
-    if (ex.track?.includes('done')) {
-      steps.push({ ex, setIndex: 0, kind: 'done' })
-    } else {
-      const count = ex.defaultSets ?? 1
-      for (let si = 0; si < count; si++) {
-        steps.push({ ex, setIndex: si, kind: 'value' })
-      }
+    for (let si = 0; si < setCount(ex); si++) {
+      steps.push({ ex, setIndex: si, kind: kindOf(ex) })
     }
   }
   return steps

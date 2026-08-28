@@ -38,6 +38,7 @@
         "type": "single",
         "track": ["distance"],
         "exerciseLabel": "Arm finisher — superset × 2",
+        "order": "circuit",
         "exercises": [
           { "name": "DB lateral raise", "repRange": [12, 15], "defaultSets": 2, "track": ["weight", "reps"] },
           { "name": "Bicep curl",       "repRange": [10, 12], "defaultSets": 2, "track": ["weight", "reps"] },
