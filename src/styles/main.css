@@ -626,12 +626,6 @@ html, body {
   padding-top: 8px;
 }
 
-.flow-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .flow-progress-bar {
   width: 100%;
   height: 10px;
@@ -645,11 +639,6 @@ html, body {
   background: var(--accent);
   border-radius: 5px;
   transition: width 0.2s ease;
-}
-
-.flow-progress-text {
-  font-size: 14px;
-  color: var(--muted);
 }
 
 .flow-exercise-name {
