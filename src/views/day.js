@@ -134,6 +134,16 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
 
     sheet.querySelector('#open-log')?.addEventListener('click', () => {
       state.logOpen = true
+      // If the Activity Log page would show nothing but the 'Log exercise'
+      // button (no metric field, nothing logged yet), skip straight past
+      // it into the flow instead of landing on an empty-feeling page.
+      if (logHasOnlyEntryButton(session, state)) {
+        const exercises = session.log.exercises ?? []
+        const steps = buildFlowSteps(exercises, session.log.order)
+        if (steps.length > 0) {
+          state.flow = { steps, stepIndex: firstIncompleteStepIndex(steps, state) }
+        }
+      }
       render()
     })
 
@@ -388,6 +398,19 @@ function hasAnyLoggedData(exercises, state) {
   })
 }
 
+// True when the Activity Log page would render nothing but the
+// 'Log exercise' entry button — no metric field, nothing logged yet —
+// so the Day page can skip straight into the flow instead.
+function logHasOnlyEntryButton(session, state) {
+  if (!session?.log) return false
+  const exercises = session.log.exercises ?? []
+  if (exercises.length === 0) return false
+  const hasMetric = session.log.type === 'single' &&
+    (session.log.track?.includes('distance') || session.log.track?.includes('lengths'))
+  if (hasMetric) return false
+  return !hasAnyLoggedData(exercises, state)
+}
+
 function renderFlowScreen(state) {
   const { steps, stepIndex } = state.flow
   const step = steps[stepIndex]
@@ -404,10 +427,7 @@ function renderFlowScreen(state) {
   return `
     <div class="flow-screen">
       <div class="flow-top">
-        <div class="flow-progress">
-          <div class="flow-progress-bar"><div class="flow-progress-fill" style="width:${progressPct}%"></div></div>
-          <div class="flow-progress-text">Step ${stepIndex + 1} of ${steps.length}</div>
-        </div>
+        <div class="flow-progress-bar"><div class="flow-progress-fill" style="width:${progressPct}%"></div></div>
         <div class="flow-exercise-name">${escHtml(ex.name)}</div>
         ${kind === 'value' && setCount > 1 ? `<div class="flow-set-label">Set ${setIndex + 1} of ${setCount}</div>` : ''}
         ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
