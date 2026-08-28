@@ -511,46 +511,51 @@ html, body {
 
 .sets-row {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
 }
 
 .set-input-group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   background: var(--surface);
   border-radius: 8px;
-  padding: 7px 10px;
+  padding: 10px 14px;
   border: 1px solid var(--border);
+  width: 100%;
 }
 
 .set-input {
-  width: 52px;
+  flex: 1;
+  min-width: 0;
+  width: auto;
   background: transparent;
   border: none;
   color: var(--text);
   font-family: inherit;
-  font-size: 16px;
+  font-size: 25px;
   font-weight: 300;
   text-align: center;
   outline: none;
 }
 
 .set-input-label {
-  font-size: 13px;
+  font-size: 16px;
   color: var(--muted);
+  flex-shrink: 0;
 }
 
 .add-set-btn {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--accent);
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 6px 0;
+  padding: 8px 0;
   font-family: inherit;
+  width: 100%;
+  text-align: left;
 }
 
 /* ── Single metric input ── */
@@ -561,25 +566,27 @@ html, body {
   background: var(--surface2);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
+  width: 100%;
 }
 
 .metric-input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
   color: var(--text);
   font-family: inherit;
-  font-size: 20px;
+  font-size: 25px;
   font-weight: 300;
   outline: none;
   padding: 4px 0;
-  width: 80px;
 }
 
 .metric-unit {
-  font-size: 16px;
+  font-size: 18px;
   color: var(--muted);
+  flex-shrink: 0;
 }
 
 /* ── Supplements ── */
