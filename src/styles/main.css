@@ -465,6 +465,15 @@ html, body {
   text-align: right;
 }
 
+.activity-summary-change {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
 /* ── Log detail ── */
 .log-section {
   display: flex;
