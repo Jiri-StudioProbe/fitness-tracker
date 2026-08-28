@@ -367,11 +367,15 @@ function renderFlowScreen(state) {
   const tracksWeight = ex.track?.includes('weight')
   const tracksReps = ex.track?.includes('reps')
   const setCount = ex.defaultSets ?? 1
+  const progressPct = Math.round(((stepIndex + 1) / steps.length) * 100)
 
   return `
     <div class="flow-screen">
       <div class="flow-top">
-        <div class="flow-progress">Step ${stepIndex + 1} of ${steps.length}</div>
+        <div class="flow-progress">
+          <div class="flow-progress-bar"><div class="flow-progress-fill" style="width:${progressPct}%"></div></div>
+          <div class="flow-progress-text">Step ${stepIndex + 1} of ${steps.length}</div>
+        </div>
         <div class="flow-exercise-name">${escHtml(ex.name)}</div>
         ${kind === 'value' && setCount > 1 ? `<div class="flow-set-label">Set ${setIndex + 1} of ${setCount}</div>` : ''}
         ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}

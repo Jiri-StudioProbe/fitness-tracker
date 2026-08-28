@@ -637,7 +637,28 @@ html, body {
 }
 
 .flow-progress {
-  font-size: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flow-progress-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+
+.flow-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 5px;
+  transition: width 0.2s ease;
+}
+
+.flow-progress-text {
+  font-size: 14px;
   color: var(--muted);
 }
 
@@ -648,7 +669,8 @@ html, body {
 }
 
 .flow-set-label {
-  font-size: 18px;
+  font-size: 22px;
+  font-weight: 400;
   color: var(--accent);
 }
 
