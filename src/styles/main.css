@@ -392,7 +392,7 @@ html, body {
 
 .sheet-title {
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--text);
 }
 
@@ -406,6 +406,14 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* No bold/strong weights anywhere on the day sheet — these classes are
+   shared with other screens, so scope the reset to .sheet only. */
+.sheet .section-label,
+.sheet .phase-pill,
+.sheet .btn {
+  font-weight: 400;
 }
 
 /* ── Session picker ── */
@@ -442,7 +450,7 @@ html, body {
 
 .session-option-name {
   font-size: 23px;
-  font-weight: 600;
+  font-weight: 400;
   color: #FFFFFF;
   flex: 1;
 }
@@ -481,7 +489,7 @@ html, body {
 
 .exercise-name {
   font-size: 19px;
-  font-weight: 600;
+  font-weight: 400;
   color: #FFFFFF;
 }
 
@@ -514,7 +522,7 @@ html, body {
   color: var(--text);
   font-family: inherit;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 400;
   text-align: center;
   outline: none;
 }
@@ -552,7 +560,7 @@ html, body {
   color: var(--text);
   font-family: inherit;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 400;
   outline: none;
   padding: 4px 0;
   width: 80px;
@@ -606,7 +614,7 @@ html, body {
 
 .supplement-name {
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text);
 }
 
@@ -649,7 +657,7 @@ html, body {
 
 .fasting-label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--muted);
   text-align: center;
 }
