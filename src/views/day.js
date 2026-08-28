@@ -30,6 +30,8 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     supplements: record.supplements ? [...record.supplements] : [],
     fasting: record.fasting ?? null,
     customText: (record.activityType === 'custom' ? record.activityLabel : '') ?? '',
+    // Picker starts collapsed once something is already chosen — expand on tap to change it.
+    pickerOpen: !(record.activityId || record.activityType),
   }
 
   function currentSession() {
@@ -45,7 +47,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       <div class="sheet-handle"></div>
       <div class="sheet-header">
         <div class="flex items-center justify-between">
-          <span class="sheet-title">${dayName(date)}, ${date.slice(8)} ${date.slice(5,7) === today().slice(5,7) ? '' : date.slice(0,7)}</span>
+          <span class="sheet-title">${dayName(date)}, ${parseInt(date.slice(8), 10)}/${parseInt(date.slice(5, 7), 10)}</span>
           <button class="btn-icon" id="close-btn">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           </button>
@@ -57,10 +59,12 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         <!-- Activity picker -->
         <div>
           <div class="section-label" style="margin-bottom:8px">Activity</div>
-          <div class="session-list" id="session-list">
-            ${[...recs].sort((a, b) => a.flags.length - b.flags.length)
-              .map(({ session, flags }) => renderSessionOption(session, flags, state)).join('')}
-          </div>
+          ${state.pickerOpen ? `
+            <div class="session-list" id="session-list">
+              ${[...recs].sort((a, b) => a.flags.length - b.flags.length)
+                .map(({ session, flags }) => renderSessionOption(session, flags, state)).join('')}
+            </div>
+          ` : renderActivitySummary(state)}
 
           ${state.activityType === 'custom' ? `
             <input type="text" class="custom-input mt-8" id="custom-text" placeholder="What did you do?" value="${escHtml(state.customText)}" />
@@ -91,7 +95,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     // Bind events
     sheet.querySelector('#close-btn').addEventListener('click', () => save(false))
 
-    sheet.querySelector('#session-list').addEventListener('click', e => {
+    sheet.querySelector('#session-list')?.addEventListener('click', e => {
       const opt = e.target.closest('.session-option[data-id]')
       if (!opt) return
       const id = opt.dataset.id
@@ -109,6 +113,12 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         state.activityType = 'session'
         state.activityLabel = s?.name ?? id
       }
+      state.pickerOpen = false
+      render()
+    })
+
+    sheet.querySelector('#activity-summary')?.addEventListener('click', () => {
+      state.pickerOpen = true
       render()
     })
 
@@ -204,6 +214,18 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
   return overlay
 }
 
+function renderActivitySummary(state) {
+  return `
+    <div class="session-option selected" id="activity-summary">
+      <div class="session-option-name">${escHtml(state.activityLabel ?? '')}</div>
+      <div class="activity-summary-change">
+        <span>Change</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+  `
+}
+
 function renderSessionOption(session, flags, state) {
   const isFlagged = flags.length > 0
   const isSelected = session.id === '__custom__'
@@ -222,7 +244,6 @@ function renderSessionOption(session, flags, state) {
     <div class="${cls}" data-id="${session.id}">
       <div>
         <div class="session-option-name">${escHtml(session.name)}</div>
-        ${session.location ? `<div class="session-location">${escHtml(session.location)}</div>` : ''}
         ${isFlagged ? `<div class="session-option-reason">${escHtml(reason)}</div>` : ''}
       </div>
       ${isSelected ? `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 9l4.5 4.5L15 5" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>` : ''}

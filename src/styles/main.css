@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -7,12 +7,12 @@
   --surface:   #1A1D21;
   --surface2:  #21252B;
   --border:    #333840;
-  --text:      #F2F3F5;
-  --muted:     #C4CDD8;
+  --text:      #F9FAFB;
+  --muted:     #D6DCE3;
   --accent:    #FF10F0;
   --accent-dim:rgba(255,16,240,0.12);
   --accent-ring:rgba(255,16,240,0.38);
-  --flagged:   rgba(242,243,245,0.4);
+  --flagged:   rgba(249,250,251,0.4);
   --danger:    #E85D5D;
   --radius:    14px;
   --radius-sm: 9px;
@@ -26,6 +26,8 @@ html, body {
   color: var(--text);
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 16px;
+  font-weight: 300;
+  letter-spacing: -0.01em;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
@@ -391,8 +393,8 @@ html, body {
 }
 
 .sheet-title {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 300;
   color: var(--text);
 }
 
@@ -406,6 +408,14 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* No bold/strong weights anywhere on the day sheet — these classes are
+   shared with other screens, so scope the reset to .sheet only. */
+.sheet .section-label,
+.sheet .phase-pill,
+.sheet .btn {
+  font-weight: 300;
 }
 
 /* ── Session picker ── */
@@ -441,8 +451,8 @@ html, body {
 }
 
 .session-option-name {
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 25px;
+  font-weight: 300;
   color: var(--text);
   flex: 1;
 }
@@ -455,9 +465,13 @@ html, body {
   text-align: right;
 }
 
-.session-location {
+.activity-summary-change {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   color: var(--muted);
+  flex-shrink: 0;
 }
 
 /* ── Log detail ── */
@@ -485,8 +499,8 @@ html, body {
 }
 
 .exercise-name {
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 21px;
+  font-weight: 300;
   color: var(--text);
 }
 
@@ -519,7 +533,7 @@ html, body {
   color: var(--text);
   font-family: inherit;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 300;
   text-align: center;
   outline: none;
 }
@@ -557,7 +571,7 @@ html, body {
   color: var(--text);
   font-family: inherit;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 300;
   outline: none;
   padding: 4px 0;
   width: 80px;
@@ -611,7 +625,7 @@ html, body {
 
 .supplement-name {
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 300;
   color: var(--text);
 }
 
@@ -654,7 +668,7 @@ html, body {
 
 .fasting-label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 300;
   color: var(--muted);
   text-align: center;
 }

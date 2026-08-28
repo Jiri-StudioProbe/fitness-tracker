@@ -1,11 +1,10 @@
 import { weekDates, prevWeek, nextWeek, today, formatWeekRange, shortDayName, addDays } from '../dates.js'
-import { weekStats, weekBanners } from '../engine.js'
+import { weekBanners } from '../engine.js'
 import { getPhaseForDate } from '../plan.js'
 
 export function renderWeekView({ plan, dayRecords, currentWeek, onDayTap, onPrevWeek, onNextWeek, onToday }) {
   const todayStr = today()
   const dates = weekDates(currentWeek)
-  const stats = weekStats(plan, dayRecords, dates)
   const banners = weekBanners(plan, dayRecords, dates)
   const phase = getPhaseForDate(plan, todayStr)
   const streak = calcStreak(dayRecords, todayStr)
@@ -22,28 +21,18 @@ export function renderWeekView({ plan, dayRecords, currentWeek, onDayTap, onPrev
     </div>
     <div class="content">
 
-      <!-- Stats above days -->
+      ${streak > 0 ? `
+      <!-- Streak -->
       <div class="card">
         <div class="week-stats">
-          <div class="stat-item">
-            <span class="stat-value">${stats.completed}<span style="font-size:14px;font-weight:400;color:var(--muted)">/${stats.target}</span></span>
-            <span class="stat-label">Sessions done</span>
-          </div>
-          <div class="stat-divider"></div>
-          <div class="stat-item">
-            <span class="stat-value ${stats.hasRow ? 'text-accent' : ''}">${stats.hasRow ? '✓' : '—'}</span>
-            <span class="stat-label">Row backbone</span>
-          </div>
-          ${streak > 0 ? `
-          <div class="stat-divider"></div>
           <div class="stat-item">
             <div class="streak-block">
               <span class="streak-count">${streak}</span>
               <span class="streak-label">day streak</span>
             </div>
-          </div>` : ''}
+          </div>
         </div>
-      </div>
+      </div>` : ''}
 
       <!-- Week card — vertical list -->
       <div class="card" style="padding:12px">
