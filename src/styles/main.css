@@ -441,9 +441,9 @@ html, body {
 }
 
 .session-option-name {
-  font-size: 20px;
-  font-weight: 500;
-  color: var(--text);
+  font-size: 23px;
+  font-weight: 600;
+  color: #FFFFFF;
   flex: 1;
 }
 
@@ -480,9 +480,9 @@ html, body {
 }
 
 .exercise-name {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--text);
+  font-size: 19px;
+  font-weight: 600;
+  color: #FFFFFF;
 }
 
 .exercise-target {
