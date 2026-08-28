@@ -15,11 +15,9 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
 
   const overlay = document.createElement('div')
   overlay.className = 'sheet-overlay'
-  overlay.addEventListener('click', e => { if (e.target === overlay) onClose() })
 
   const sheet = document.createElement('div')
   sheet.className = 'sheet'
-  sheet.addEventListener('click', e => e.stopPropagation())
 
   const state = {
     activityId: record.activityId ?? null,
@@ -32,6 +30,11 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     customText: (record.activityType === 'custom' ? record.activityLabel : '') ?? '',
     // Picker starts collapsed once something is already chosen — expand on tap to change it.
     pickerOpen: !(record.activityId || record.activityType),
+    // Guided one-set-at-a-time log flow. null when not active.
+    flow: null,
+    // Whether the Activity Log page (its own full page, opened from the
+    // Day page) is showing.
+    logOpen: false,
   }
 
   function currentSession() {
@@ -39,61 +42,100 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     return state.activityId ? getSessionById(plan, state.activityId) : null
   }
 
+  function advanceFlow(dir) {
+    if (!state.flow) return
+    const next = state.flow.stepIndex + dir
+    if (next < 0 || next >= state.flow.steps.length) {
+      state.flow = null
+    } else {
+      state.flow.stepIndex = next
+    }
+  }
+
   function render() {
     const session = currentSession()
     const supplements = getSupplementsForDay(plan, state.activityId)
+    const logApplicable = !!(session?.log && session.log.type !== 'completion')
 
     sheet.innerHTML = `
-      <div class="sheet-handle"></div>
       <div class="sheet-header">
         <div class="flex items-center justify-between">
-          <span class="sheet-title">${dayName(date)}, ${parseInt(date.slice(8), 10)}/${parseInt(date.slice(5, 7), 10)}</span>
+          <span class="sheet-title">${state.logOpen
+            ? escHtml(state.activityLabel ?? 'Log')
+            : `${dayName(date)}, ${parseInt(date.slice(8), 10)}/${parseInt(date.slice(5, 7), 10)}`}</span>
           <button class="btn-icon" id="close-btn">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           </button>
         </div>
-        ${state.completed ? '<span class="phase-pill text-accent" style="border-color:var(--accent);background:var(--accent-dim)">Completed ✓</span>' : ''}
+        ${!state.logOpen && state.completed ? '<span class="phase-pill text-accent" style="border-color:var(--accent);background:var(--accent-dim)">Completed ✓</span>' : ''}
       </div>
       <div class="sheet-body">
+        ${state.logOpen ? (session ? renderLogDetail(session, state) : '') : `
 
-        <!-- Activity picker -->
-        <div>
-          <div class="section-label" style="margin-bottom:8px">Activity</div>
-          ${state.pickerOpen ? `
-            <div class="session-list" id="session-list">
-              ${[...recs].sort((a, b) => a.flags.length - b.flags.length)
-                .map(({ session, flags }) => renderSessionOption(session, flags, state)).join('')}
+          <!-- Activity picker -->
+          <div>
+            <div class="section-label" style="margin-bottom:8px">Activity</div>
+            ${state.pickerOpen ? `
+              <div class="session-list" id="session-list">
+                ${[...recs].sort((a, b) => a.flags.length - b.flags.length)
+                  .map(({ session, flags }) => renderSessionOption(session, flags, state)).join('')}
+              </div>
+            ` : renderActivitySummary(state)}
+
+            ${state.activityType === 'custom' ? `
+              <input type="text" class="custom-input mt-8" id="custom-text" placeholder="What did you do?" value="${escHtml(state.customText)}" />
+            ` : ''}
+          </div>
+
+          <!-- Activity log entry point — its own full page -->
+          ${logApplicable ? `
+            <div class="log-section">
+              <div class="section-label">Log (optional)</div>
+              <button class="btn btn-ghost btn-full" id="open-log">Open activity log ›</button>
             </div>
-          ` : renderActivitySummary(state)}
-
-          ${state.activityType === 'custom' ? `
-            <input type="text" class="custom-input mt-8" id="custom-text" placeholder="What did you do?" value="${escHtml(state.customText)}" />
           ` : ''}
-        </div>
 
-        <!-- Log detail -->
-        ${session ? renderLogDetail(session, state) : ''}
+          <!-- Supplements -->
+          ${supplements.length > 0 ? renderSupplements(supplements, state) : ''}
 
-        <!-- Supplements -->
-        ${supplements.length > 0 ? renderSupplements(supplements, state) : ''}
+          <!-- Fasting -->
+          ${renderFasting(state, plan)}
 
-        <!-- Fasting -->
-        ${renderFasting(state, plan)}
+          <!-- Complete button -->
+          <button class="btn btn-full complete-btn ${state.completed ? 'done' : 'btn-primary'}" id="complete-btn">
+            ${state.completed ? 'Completed ✓' : 'Mark complete'}
+          </button>
 
-        <!-- Complete button -->
-        <button class="btn btn-full complete-btn ${state.completed ? 'done' : 'btn-primary'}" id="complete-btn">
-          ${state.completed ? 'Completed ✓' : 'Mark complete'}
-        </button>
+          ${state.completed ? `
+            <button class="btn btn-full btn-ghost" id="uncomplete-btn" style="margin-top:-4px">Undo completion</button>
+          ` : ''}
 
-        ${state.completed ? `
-          <button class="btn btn-full btn-ghost" id="uncomplete-btn" style="margin-top:-4px">Undo completion</button>
-        ` : ''}
-
+        `}
       </div>
     `
 
     // Bind events
-    sheet.querySelector('#close-btn').addEventListener('click', () => save(false))
+    sheet.querySelector('#close-btn').addEventListener('click', () => {
+      // Three levels deep, closest first: exiting the guided flow drops
+      // back to the Activity Log page's glanceable view; closing the
+      // Activity Log page drops back to the Day page; closing the Day
+      // page returns to the Week page. Nothing entered is lost at any
+      // level — each is just a view state, not a discard.
+      if (state.flow) {
+        state.flow = null
+        render()
+      } else if (state.logOpen) {
+        state.logOpen = false
+        render()
+      } else {
+        save(false)
+      }
+    })
+
+    sheet.querySelector('#open-log')?.addEventListener('click', () => {
+      state.logOpen = true
+      render()
+    })
 
     sheet.querySelector('#session-list')?.addEventListener('click', e => {
       const opt = e.target.closest('.session-option[data-id]')
@@ -130,23 +172,23 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       })
     }
 
-    // Sets inputs
+    // Glanceable sets inputs
     sheet.querySelectorAll('.set-weight').forEach(inp => {
       inp.addEventListener('change', e => {
         const { ex, set } = e.target.dataset
-        if (!state.detail.exercises) state.detail.exercises = {}
-        if (!state.detail.exercises[ex]) state.detail.exercises[ex] = []
-        if (!state.detail.exercises[ex][set]) state.detail.exercises[ex][set] = {}
-        state.detail.exercises[ex][set].weight = e.target.value
+        setDetailValue(state, ex, set, 'weight', e.target.value)
       })
     })
     sheet.querySelectorAll('.set-reps').forEach(inp => {
       inp.addEventListener('change', e => {
         const { ex, set } = e.target.dataset
-        if (!state.detail.exercises) state.detail.exercises = {}
-        if (!state.detail.exercises[ex]) state.detail.exercises[ex] = []
-        if (!state.detail.exercises[ex][set]) state.detail.exercises[ex][set] = {}
-        state.detail.exercises[ex][set].reps = e.target.value
+        setDetailValue(state, ex, set, 'reps', e.target.value)
+      })
+    })
+    sheet.querySelectorAll('.set-done').forEach(inp => {
+      inp.addEventListener('change', e => {
+        const ex = e.target.dataset.ex
+        setDetailValue(state, ex, 0, 'done', e.target.checked)
       })
     })
     sheet.querySelectorAll('.add-set-btn').forEach(btn => {
@@ -164,6 +206,38 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
 
     const lengthsInput = sheet.querySelector('#lengths-input')
     if (lengthsInput) lengthsInput.addEventListener('change', e => { state.detail.lengths = e.target.value })
+
+    // Guided flow: start / navigate
+    sheet.querySelector('#start-flow')?.addEventListener('click', () => {
+      const exercises = session?.log?.exercises ?? []
+      const steps = buildFlowSteps(exercises)
+      if (steps.length === 0) return
+      state.flow = { steps, stepIndex: firstIncompleteStepIndex(steps, state) }
+      render()
+    })
+
+    sheet.querySelector('#flow-weight')?.addEventListener('input', e => {
+      const step = state.flow.steps[state.flow.stepIndex]
+      setDetailValue(state, step.ex.name, step.setIndex, 'weight', e.target.value)
+    })
+    sheet.querySelector('#flow-reps')?.addEventListener('input', e => {
+      const step = state.flow.steps[state.flow.stepIndex]
+      setDetailValue(state, step.ex.name, step.setIndex, 'reps', e.target.value)
+    })
+    sheet.querySelector('#flow-done-toggle')?.addEventListener('click', () => {
+      const step = state.flow.steps[state.flow.stepIndex]
+      const current = state.detail?.exercises?.[step.ex.name]?.[step.setIndex]?.done
+      setDetailValue(state, step.ex.name, step.setIndex, 'done', !current)
+      render()
+    })
+    sheet.querySelector('#flow-next')?.addEventListener('click', () => {
+      advanceFlow(1)
+      render()
+    })
+    sheet.querySelector('#flow-back')?.addEventListener('click', () => {
+      advanceFlow(-1)
+      render()
+    })
 
     // Supplements
     sheet.querySelectorAll('.supplement-item').forEach(item => {
@@ -185,7 +259,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     })
 
     // Complete
-    sheet.querySelector('#complete-btn').addEventListener('click', () => {
+    sheet.querySelector('#complete-btn')?.addEventListener('click', () => {
       state.completed = true
       save(true)
     })
@@ -212,6 +286,13 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
   render()
   overlay.appendChild(sheet)
   return overlay
+}
+
+function setDetailValue(state, exName, setIndex, field, value) {
+  if (!state.detail.exercises) state.detail.exercises = {}
+  if (!state.detail.exercises[exName]) state.detail.exercises[exName] = []
+  if (!state.detail.exercises[exName][setIndex]) state.detail.exercises[exName][setIndex] = {}
+  state.detail.exercises[exName][setIndex][field] = value
 }
 
 function renderActivitySummary(state) {
@@ -251,55 +332,174 @@ function renderSessionOption(session, flags, state) {
   `
 }
 
+// ── Guided one-set-at-a-time flow ──────────────────────────────────────
+// Each exercise contributes one step per set (or a single step for
+// done/checkbox-tracked exercises like Plank).
+
+function buildFlowSteps(exercises) {
+  const steps = []
+  for (const ex of exercises) {
+    if (ex.track?.includes('done')) {
+      steps.push({ ex, setIndex: 0, kind: 'done' })
+    } else {
+      const count = ex.defaultSets ?? 1
+      for (let si = 0; si < count; si++) {
+        steps.push({ ex, setIndex: si, kind: 'value' })
+      }
+    }
+  }
+  return steps
+}
+
+function isStepFilled(state, step) {
+  const { ex, setIndex, kind } = step
+  const set = state.detail?.exercises?.[ex.name]?.[setIndex]
+  if (kind === 'done') return !!set?.done
+  const tracksWeight = ex.track?.includes('weight')
+  const tracksReps = ex.track?.includes('reps')
+  const weightOk = !tracksWeight || (set?.weight ?? '') !== ''
+  const repsOk = !tracksReps || (set?.reps ?? '') !== ''
+  return weightOk && repsOk
+}
+
+function firstIncompleteStepIndex(steps, state) {
+  const idx = steps.findIndex(step => !isStepFilled(state, step))
+  return idx === -1 ? 0 : idx
+}
+
+function hasAnyLoggedData(exercises, state) {
+  return exercises.some(ex => {
+    const sets = state.detail?.exercises?.[ex.name]
+    if (!sets) return false
+    return sets.some(s => (s?.weight ?? '') !== '' || (s?.reps ?? '') !== '' || s?.done)
+  })
+}
+
+function renderFlowScreen(state) {
+  const { steps, stepIndex } = state.flow
+  const step = steps[stepIndex]
+  const { ex, setIndex, kind } = step
+  const isLast = stepIndex === steps.length - 1
+  const nextStep = steps[stepIndex + 1]
+  const nextLabel = isLast ? 'Finish' : (nextStep && nextStep.ex !== ex ? 'Next exercise' : 'Next set')
+  const current = state.detail?.exercises?.[ex.name]?.[setIndex] ?? {}
+  const tracksWeight = ex.track?.includes('weight')
+  const tracksReps = ex.track?.includes('reps')
+  const setCount = ex.defaultSets ?? 1
+  const progressPct = Math.round(((stepIndex + 1) / steps.length) * 100)
+
+  return `
+    <div class="flow-screen">
+      <div class="flow-top">
+        <div class="flow-progress">
+          <div class="flow-progress-bar"><div class="flow-progress-fill" style="width:${progressPct}%"></div></div>
+          <div class="flow-progress-text">Step ${stepIndex + 1} of ${steps.length}</div>
+        </div>
+        <div class="flow-exercise-name">${escHtml(ex.name)}</div>
+        ${kind === 'value' && setCount > 1 ? `<div class="flow-set-label">Set ${setIndex + 1} of ${setCount}</div>` : ''}
+        ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
+        ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
+
+        ${kind === 'done' ? `
+          <button class="flow-done-btn ${current.done ? 'checked' : ''}" id="flow-done-toggle">
+            ${current.done ? '✓ Done' : 'Mark done'}
+          </button>
+        ` : `
+          <div class="set-input-group flow-input-group">
+            ${tracksWeight ? `
+              <input type="number" class="set-input flow-input" id="flow-weight" inputmode="decimal" placeholder="—" value="${escHtml(current.weight ?? '')}" />
+              <span class="set-input-label">kg</span>
+              <span class="set-input-label" style="margin:0 2px">×</span>
+            ` : ''}
+            ${tracksReps ? `
+              <input type="number" class="set-input flow-input" id="flow-reps" inputmode="numeric" placeholder="—" value="${escHtml(current.reps ?? '')}" />
+              <span class="set-input-label">reps</span>
+            ` : ''}
+          </div>
+        `}
+      </div>
+
+      <div class="flow-nav">
+        ${stepIndex > 0 ? `<button class="btn btn-ghost flow-back-btn" id="flow-back">Back</button>` : ''}
+        <button class="btn btn-primary flow-next-btn" id="flow-next">${nextLabel}</button>
+      </div>
+    </div>
+  `
+}
+
+function renderExerciseRow(ex, state) {
+  const defaultCount = ex.defaultSets ?? 1
+  const emptySet = ex.track?.includes('done') ? { done: false } : { weight: '', reps: '' }
+  const sets = state.detail?.exercises?.[ex.name] ?? Array.from({ length: defaultCount }, () => ({ ...emptySet }))
+  const tracksWeight = ex.track?.includes('weight')
+  const tracksReps = ex.track?.includes('reps')
+  const tracksDone = ex.track?.includes('done')
+
+  return `
+    <div class="exercise-row">
+      <div class="exercise-name">${escHtml(ex.name)}</div>
+      ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
+      ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
+      ${tracksDone ? `
+        <label class="done-row">
+          <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" />
+          <span class="done-label">Done</span>
+        </label>
+      ` : `
+        <div class="sets-row">
+          ${sets.map((set, si) => `
+            <div class="set-input-group">
+              ${tracksWeight ? `
+                <input type="number" class="set-input set-weight" inputmode="decimal" placeholder="—" value="${escHtml(set.weight ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
+                <span class="set-input-label">kg</span>
+                <span class="set-input-label" style="margin:0 2px">×</span>
+              ` : ''}
+              ${tracksReps ? `
+                <input type="number" class="set-input set-reps" inputmode="numeric" placeholder="—" value="${escHtml(set.reps ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
+                <span class="set-input-label">reps</span>
+              ` : ''}
+            </div>
+          `).join('')}
+          <button class="add-set-btn" data-ex="${escHtml(ex.name)}">+ Set</button>
+        </div>
+      `}
+    </div>
+  `
+}
+
+// Renders the entry button (fresh), the guided flow (active), or the
+// glanceable all-fields view (once something has been logged).
+function renderExerciseLogSection(exercises, state, label) {
+  if (exercises.length === 0) return ''
+
+  if (state.flow) return renderFlowScreen(state)
+
+  const hasData = hasAnyLoggedData(exercises, state)
+
+  if (!hasData) {
+    return `
+      <div class="log-section">
+        <div class="section-label">${escHtml(label)}</div>
+        <button class="btn btn-primary btn-full" id="start-flow">Log exercise</button>
+      </div>
+    `
+  }
+
+  return `
+    <div class="log-section">
+      <div class="section-label">${escHtml(label)}</div>
+      ${exercises.map(ex => renderExerciseRow(ex, state)).join('')}
+      <button class="btn btn-ghost btn-full" id="start-flow">Continue guided log</button>
+    </div>
+  `
+}
+
 function renderLogDetail(session, state) {
   if (!session.log || session.log.type === 'completion') return ''
 
   if (session.log.type === 'sets') {
     const exercises = session.log.exercises ?? []
-    return `
-      <div class="log-section">
-        <div class="section-label">Log (optional)</div>
-        ${exercises.map((ex, i) => {
-          const defaultCount = ex.defaultSets ?? 1
-          const emptySet = ex.track?.includes('done') ? { done: false } : { weight: '', reps: '' }
-          const sets = state.detail?.exercises?.[ex.name] ?? Array.from({ length: defaultCount }, () => ({ ...emptySet }))
-          const tracksWeight = ex.track?.includes('weight')
-          const tracksReps = ex.track?.includes('reps')
-          const tracksDone = ex.track?.includes('done')
-
-          return `
-            <div class="exercise-row">
-              <div class="exercise-name">${escHtml(ex.name)}</div>
-              ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
-              ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
-              ${tracksDone ? `
-                <label class="flex items-center gap-8" style="cursor:pointer">
-                  <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" style="width:18px;height:18px;accent-color:var(--accent)" />
-                  <span class="text-sm text-muted">Done</span>
-                </label>
-              ` : `
-                <div class="sets-row">
-                  ${sets.map((set, si) => `
-                    <div class="set-input-group">
-                      ${tracksWeight ? `
-                        <input type="number" class="set-input set-weight" inputmode="decimal" placeholder="—" value="${escHtml(set.weight ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
-                        <span class="set-input-label">kg</span>
-                        <span class="set-input-label" style="margin:0 2px">×</span>
-                      ` : ''}
-                      ${tracksReps ? `
-                        <input type="number" class="set-input set-reps" inputmode="numeric" placeholder="—" value="${escHtml(set.reps ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
-                        <span class="set-input-label">reps</span>
-                      ` : ''}
-                    </div>
-                  `).join('')}
-                  <button class="add-set-btn" data-ex="${escHtml(ex.name)}">+ Set</button>
-                </div>
-              `}
-            </div>
-          `
-        }).join('')}
-      </div>
-    `
+    return renderExerciseLogSection(exercises, state, 'Log (optional)')
   }
 
   if (session.log.type === 'single') {
@@ -308,46 +508,9 @@ function renderLogDetail(session, state) {
     const exercises = session.log.exercises ?? []
     const hasMetric = tracksDistance || tracksLengths
 
-    function renderExerciseCards(exList) {
-      return exList.map((ex) => {
-        const defaultCount = ex.defaultSets ?? 1
-        const emptySet = ex.track?.includes('done') ? { done: false } : { weight: '', reps: '' }
-        const sets = state.detail?.exercises?.[ex.name] ?? Array.from({ length: defaultCount }, () => ({ ...emptySet }))
-        const tracksWeight = ex.track?.includes('weight')
-        const tracksReps = ex.track?.includes('reps')
-        const tracksDone = ex.track?.includes('done')
-        return `
-          <div class="exercise-row">
-            <div class="exercise-name">${escHtml(ex.name)}</div>
-            ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
-            ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
-            ${tracksDone ? `
-              <label class="flex items-center gap-8" style="cursor:pointer">
-                <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" style="width:18px;height:18px;accent-color:var(--accent)" />
-                <span class="text-sm text-muted">Done</span>
-              </label>
-            ` : `
-              <div class="sets-row">
-                ${sets.map((set, si) => `
-                  <div class="set-input-group">
-                    ${tracksWeight ? `
-                      <input type="number" class="set-input set-weight" inputmode="decimal" placeholder="—" value="${escHtml(set.weight ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
-                      <span class="set-input-label">kg</span>
-                      <span class="set-input-label" style="margin:0 2px">×</span>
-                    ` : ''}
-                    ${tracksReps ? `
-                      <input type="number" class="set-input set-reps" inputmode="numeric" placeholder="—" value="${escHtml(set.reps ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
-                      <span class="set-input-label">reps</span>
-                    ` : ''}
-                  </div>
-                `).join('')}
-                <button class="add-set-btn" data-ex="${escHtml(ex.name)}">+ Set</button>
-              </div>
-            `}
-          </div>
-        `
-      }).join('')
-    }
+    // The guided flow takes over the whole log area while active — the
+    // metric field can wait until it's done or exited.
+    if (state.flow) return renderFlowScreen(state)
 
     const metricSection = hasMetric ? `
       <div class="log-section">
@@ -367,12 +530,7 @@ function renderLogDetail(session, state) {
       </div>
     ` : ''
 
-    const exerciseSection = exercises.length > 0 ? `
-      <div class="log-section">
-        <div class="section-label">${escHtml(session.log.exerciseLabel ?? 'Exercises (optional)')}</div>
-        ${renderExerciseCards(exercises)}
-      </div>
-    ` : ''
+    const exerciseSection = renderExerciseLogSection(exercises, state, session.log.exerciseLabel ?? 'Exercises (optional)')
 
     return metricSection + exerciseSection
   }

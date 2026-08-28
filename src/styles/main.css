@@ -356,37 +356,27 @@ html, body {
   color: var(--muted);
 }
 
-/* ── Day sheet (bottom sheet) ── */
+/* ── Day / Activity Log page (full page, not a modal) ── */
 .sheet-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: var(--bg);
   z-index: 100;
   display: flex;
-  align-items: flex-end;
   animation: fade-in 0.2s ease;
 }
 
 .sheet {
   width: 100%;
+  height: 100dvh;
   background: var(--surface);
-  border-radius: var(--radius) var(--radius) 0 0;
   padding: 0 0 calc(24px + var(--safe-bot));
-  max-height: 92dvh;
   overflow-y: auto;
-  animation: slide-up 0.3s cubic-bezier(0.32,0.72,0,1);
-}
-
-.sheet-handle {
-  width: 36px;
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  margin: 12px auto 0;
+  animation: slide-up 0.25s cubic-bezier(0.32,0.72,0,1);
 }
 
 .sheet-header {
-  padding: 16px 20px 0;
+  padding: calc(16px + var(--safe-top)) 20px 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -492,10 +482,10 @@ html, body {
 .exercise-row {
   background: var(--surface2);
   border-radius: var(--radius-sm);
-  padding: 12px 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .exercise-name {
@@ -509,49 +499,83 @@ html, body {
   color: var(--muted);
 }
 
+.done-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 10px 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.set-done {
+  width: 30px;
+  height: 30px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.done-label {
+  font-size: 18px;
+  color: var(--muted);
+}
+
 .sets-row {
   display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .set-input-group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   background: var(--surface);
-  border-radius: 8px;
-  padding: 7px 10px;
+  border-radius: 10px;
+  padding: 18px;
   border: 1px solid var(--border);
+  width: 100%;
+  min-height: 64px;
 }
 
 .set-input {
-  width: 52px;
+  flex: 1;
+  min-width: 0;
+  width: auto;
   background: transparent;
   border: none;
   color: var(--text);
   font-family: inherit;
-  font-size: 16px;
+  font-size: 34px;
   font-weight: 300;
+  font-variant-numeric: tabular-nums;
   text-align: center;
   outline: none;
 }
 
 .set-input-label {
-  font-size: 13px;
+  font-size: 18px;
   color: var(--muted);
+  flex-shrink: 0;
 }
 
 .add-set-btn {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--accent);
-  background: transparent;
-  border: none;
+  background: var(--surface);
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
   cursor: pointer;
-  padding: 6px 0;
+  padding: 16px;
   font-family: inherit;
+  width: 100%;
+  min-height: 56px;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
 }
+
+.add-set-btn:active { background: var(--border); }
 
 /* ── Single metric input ── */
 .metric-input-row {
@@ -560,27 +584,125 @@ html, body {
   gap: 12px;
   background: var(--surface2);
   border-radius: var(--radius-sm);
-  padding: 12px 14px;
+  padding: 18px;
+  width: 100%;
+  min-height: 64px;
 }
 
 .metric-input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
   color: var(--text);
   font-family: inherit;
-  font-size: 20px;
+  font-size: 36px;
   font-weight: 300;
+  font-variant-numeric: tabular-nums;
   outline: none;
   padding: 4px 0;
-  width: 80px;
 }
 
 .metric-unit {
-  font-size: 16px;
+  font-size: 20px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* ── Guided one-set-at-a-time flow ── */
+.flow-screen {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 62vh;
+  gap: 24px;
+}
+
+.flow-top {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.flow-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flow-progress-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+
+.flow-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 5px;
+  transition: width 0.2s ease;
+}
+
+.flow-progress-text {
+  font-size: 14px;
   color: var(--muted);
 }
+
+.flow-exercise-name {
+  font-size: 30px;
+  font-weight: 300;
+  color: var(--text);
+}
+
+.flow-set-label {
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--accent);
+}
+
+.flow-input-group {
+  margin-top: 20px;
+  min-height: 96px;
+  padding: 24px;
+}
+
+.flow-input {
+  font-size: 44px;
+}
+
+.flow-done-btn {
+  margin-top: 20px;
+  width: 100%;
+  min-height: 96px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 300;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.flow-done-btn.checked {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.flow-nav {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.flow-back-btn { flex: 0 0 auto; min-width: 100px; }
+.flow-next-btn { flex: 1; }
 
 /* ── Supplements ── */
 .supplement-list {
