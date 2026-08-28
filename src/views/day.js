@@ -273,9 +273,9 @@ function renderLogDetail(session, state) {
               ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
               ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
               ${tracksDone ? `
-                <label class="flex items-center gap-8" style="cursor:pointer">
-                  <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" style="width:18px;height:18px;accent-color:var(--accent)" />
-                  <span class="text-sm text-muted">Done</span>
+                <label class="done-row">
+                  <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" />
+                  <span class="done-label">Done</span>
                 </label>
               ` : `
                 <div class="sets-row">
@@ -322,9 +322,9 @@ function renderLogDetail(session, state) {
             ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
             ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
             ${tracksDone ? `
-              <label class="flex items-center gap-8" style="cursor:pointer">
-                <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" style="width:18px;height:18px;accent-color:var(--accent)" />
-                <span class="text-sm text-muted">Done</span>
+              <label class="done-row">
+                <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" />
+                <span class="done-label">Done</span>
               </label>
             ` : `
               <div class="sets-row">

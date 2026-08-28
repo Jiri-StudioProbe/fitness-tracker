@@ -492,10 +492,10 @@ html, body {
 .exercise-row {
   background: var(--surface2);
   border-radius: var(--radius-sm);
-  padding: 12px 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .exercise-name {
@@ -509,21 +509,44 @@ html, body {
   color: var(--muted);
 }
 
+.done-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 10px 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.set-done {
+  width: 30px;
+  height: 30px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.done-label {
+  font-size: 18px;
+  color: var(--muted);
+}
+
 .sets-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .set-input-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   background: var(--surface);
-  border-radius: 8px;
-  padding: 10px 14px;
+  border-radius: 10px;
+  padding: 18px;
   border: 1px solid var(--border);
   width: 100%;
+  min-height: 64px;
 }
 
 .set-input {
@@ -534,29 +557,35 @@ html, body {
   border: none;
   color: var(--text);
   font-family: inherit;
-  font-size: 25px;
+  font-size: 34px;
   font-weight: 300;
+  font-variant-numeric: tabular-nums;
   text-align: center;
   outline: none;
 }
 
 .set-input-label {
-  font-size: 16px;
+  font-size: 18px;
   color: var(--muted);
   flex-shrink: 0;
 }
 
 .add-set-btn {
-  font-size: 16px;
+  font-size: 18px;
   color: var(--accent);
-  background: transparent;
-  border: none;
+  background: var(--surface);
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
   cursor: pointer;
-  padding: 8px 0;
+  padding: 16px;
   font-family: inherit;
   width: 100%;
-  text-align: left;
+  min-height: 56px;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
 }
+
+.add-set-btn:active { background: var(--border); }
 
 /* ── Single metric input ── */
 .metric-input-row {
@@ -565,8 +594,9 @@ html, body {
   gap: 12px;
   background: var(--surface2);
   border-radius: var(--radius-sm);
-  padding: 12px 14px;
+  padding: 18px;
   width: 100%;
+  min-height: 64px;
 }
 
 .metric-input {
@@ -577,14 +607,15 @@ html, body {
   border-bottom: 1px solid var(--border);
   color: var(--text);
   font-family: inherit;
-  font-size: 25px;
+  font-size: 36px;
   font-weight: 300;
+  font-variant-numeric: tabular-nums;
   outline: none;
   padding: 4px 0;
 }
 
 .metric-unit {
-  font-size: 18px;
+  font-size: 20px;
   color: var(--muted);
   flex-shrink: 0;
 }
