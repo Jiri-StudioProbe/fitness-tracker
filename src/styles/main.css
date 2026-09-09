@@ -983,6 +983,248 @@ html, body {
   color: var(--accent);
 }
 
+/* ── Plan Builder ──────────────────────────────────────────────────────
+   Deliberately NOT the oversized workout-log sizing above — this is used
+   at a desk with glasses on, not mid-set. Compact, dense, readable. */
+.plan-builder-content {
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.pb-hint {
+  font-size: 13px;
+  color: var(--muted);
+  margin: -8px 0 16px;
+  line-height: 1.5;
+}
+
+.pb-field { margin-bottom: 14px; }
+
+.pb-field > label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+
+.pb-input, .pb-select, .pb-textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  outline: none;
+}
+
+.pb-input:focus, .pb-select:focus, .pb-textarea:focus { border-color: var(--accent); }
+
+.pb-textarea {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px;
+  resize: vertical;
+}
+
+.pb-row { display: flex; gap: 12px; }
+.pb-row > .pb-field { flex: 1; min-width: 0; }
+
+.pb-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  margin-bottom: 14px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pb-check input { width: auto; accent-color: var(--accent); }
+
+/* Builder home — section links */
+.pb-section-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  border: 1px solid transparent;
+}
+
+.pb-section-link:active { background: var(--border); }
+
+.pb-section-link-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pb-section-link-name { font-size: 16px; font-weight: 500; color: var(--text); }
+.pb-section-link-count { font-size: 13px; color: var(--muted); }
+.pb-section-link-arrow { color: var(--muted); flex-shrink: 0; }
+
+/* List entry cards (session / recommendation / phase / supplement) */
+.pb-entry {
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.pb-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pb-entry-title { flex: 1; font-size: 15px; font-weight: 500; color: var(--text); min-width: 0; }
+.pb-entry-title.empty { color: var(--muted); font-weight: 400; font-style: italic; }
+
+.pb-entry-badge {
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.pb-entry-body { padding: 2px 14px 14px; border-top: 1px solid var(--border); margin-top: 2px; padding-top: 12px; }
+
+.pb-entry-remove {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 2px;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.pb-entry-remove:active { color: var(--danger); }
+
+.pb-add-btn {
+  width: 100%;
+  padding: 12px;
+  margin-top: 4px;
+  background: transparent;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pb-add-btn:active { background: var(--surface2); }
+
+/* Exercise mini-cards inside a session editor */
+.pb-exercise {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+/* Chips (tracked fields, presets) */
+.pb-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+.pb-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 4px 6px 4px 10px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.pb-chip button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 0 2px;
+  font-size: 13px;
+  cursor: pointer;
+  line-height: 1;
+  font-family: inherit;
+}
+
+.pb-chip button:active { color: var(--danger); }
+
+.pb-chip-row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+
+.pb-chip-suggest {
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.pb-chip-suggest:active { border-color: var(--accent); color: var(--accent); }
+
+/* Rep-mode toggle */
+.pb-toggle-row { display: flex; gap: 6px; margin-bottom: 10px; }
+
+.pb-toggle-row button {
+  flex: 1;
+  padding: 7px;
+  font-size: 12.5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pb-toggle-row button.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+/* Preview */
+.pb-preview {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  white-space: pre;
+  overflow-x: auto;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.pb-validation {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pb-validation.ok { background: rgba(62,207,110,0.1); color: #3ecf6e; }
+.pb-validation.bad { background: rgba(232,93,93,0.1); color: var(--danger); }
+
 /* ── Animations ── */
 @keyframes fade-in {
   from { opacity: 0 }

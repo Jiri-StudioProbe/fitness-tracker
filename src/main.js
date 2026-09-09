@@ -6,6 +6,7 @@ import { renderWeekView } from './views/week.js'
 import { renderDaySheet } from './views/day.js'
 import { renderSettingsView } from './views/settings.js'
 import { renderProgressView } from './views/progress.js'
+import { renderPlanBuilderView } from './views/planBuilder.js'
 
 const app = document.getElementById('app')
 
@@ -42,7 +43,9 @@ function render() {
   const main = document.createElement('div')
   main.style.cssText = 'flex:1;display:flex;flex-direction:column;overflow:hidden'
 
-  if (!state.plan) {
+  if (state.tab === 'plan') {
+    main.appendChild(renderPlanBuilderView({ activePlan: state.plan }))
+  } else if (!state.plan) {
     renderNoplan(main)
   } else if (state.tab === 'week') {
     const view = renderWeekView({
@@ -132,6 +135,10 @@ function renderNavTabs() {
     <button class="nav-tab ${state.tab === 'progress' ? 'active' : ''}" data-tab="progress">
       <span class="nav-tab-icon">📈</span>
       <span class="nav-tab-label">Progress</span>
+    </button>
+    <button class="nav-tab ${state.tab === 'plan' ? 'active' : ''}" data-tab="plan">
+      <span class="nav-tab-icon">📝</span>
+      <span class="nav-tab-label">Plan</span>
     </button>
     <button class="nav-tab ${state.tab === 'settings' ? 'active' : ''}" data-tab="settings">
       <span class="nav-tab-icon">⚙️</span>
