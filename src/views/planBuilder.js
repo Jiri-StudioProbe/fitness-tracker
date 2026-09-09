@@ -26,6 +26,24 @@ function emptyExercise() {
   return { _id: uid(), name: '', repMode: 'range', repMin: '', repMax: '', target: '', defaultSets: '', track: ['weight', 'reps'] }
 }
 
+// A session's exercise log is an ordered list of blocks. Each is either:
+//   { kind: 'sequential', exercise }              — one exercise, all its
+//                                                     sets back-to-back
+//   { kind: 'circuit', rounds, exercises, label? } — several exercises,
+//                                                     one set of each per
+//                                                     round
+// Blocks can be freely mixed and reordered — e.g. row's own distance
+// metric (kept separate, see log.track below) followed by a sequential
+// exercise, followed by a circuit.
+
+function emptySequentialBlock() {
+  return { _id: uid(), kind: 'sequential', exercise: emptyExercise() }
+}
+
+function emptyCircuitBlock() {
+  return { _id: uid(), kind: 'circuit', rounds: 2, label: '', exercises: [emptyExercise(), emptyExercise()] }
+}
+
 function emptySessionType() {
   return {
     _id: uid(),
@@ -34,7 +52,7 @@ function emptySessionType() {
     isLoadingSession: false,
     isRest: false,
     optional: false,
-    log: { type: 'completion', track: [], hasExercises: false, exerciseLabel: '', order: 'sequential', exercises: [] },
+    log: { type: 'completion', track: [], hasExercises: false, blocks: [] },
   }
 }
 
@@ -52,7 +70,9 @@ function emptySupplement() {
 
 function defaultData() {
   return {
-    plan: { title: '', id: '', startDate: '', endDate: '', weekStartsOn: 'monday', weeklyTargetSessions: 5, rowBackbonePerWeek: 1 },
+    // weekStartsOn is fixed to Monday throughout the app (dates.js doesn't
+    // support any other start), so it's not exposed as a choice here.
+    plan: { title: '', id: '', startDate: '', endDate: '', weeklyTargetSessions: 5 },
     sessionTypes: [],
     recommendations: [],
     phases: [],
@@ -91,6 +111,35 @@ function importExercise(e) {
   return out
 }
 
+function importBlock(b) {
+  if (b.kind === 'circuit') {
+    return {
+      _id: uid(), kind: 'circuit',
+      rounds: b.rounds ?? 1,
+      label: b.label || '',
+      exercises: (Array.isArray(b.exercises) ? b.exercises : []).map(importExercise),
+    }
+  }
+  return { _id: uid(), kind: 'sequential', exercise: importExercise(b.exercise || {}) }
+}
+
+// Reads the current 'blocks' shape, or falls back to the older flat
+// 'exercises' + 'order' shape from plans authored before blocks existed.
+function importBlocksFromLog(log) {
+  if (Array.isArray(log.blocks)) return log.blocks.map(importBlock)
+  const exercises = Array.isArray(log.exercises) ? log.exercises : []
+  if (exercises.length === 0) return []
+  if (log.order === 'circuit') {
+    return [{
+      _id: uid(), kind: 'circuit',
+      rounds: Math.max(1, ...exercises.map(e => e.defaultSets ?? 1)),
+      label: log.exerciseLabel || '',
+      exercises: exercises.map(importExercise),
+    }]
+  }
+  return exercises.map(e => ({ _id: uid(), kind: 'sequential', exercise: importExercise(e) }))
+}
+
 export function importPlanJson(raw) {
   const s = defaultData()
   if (raw.plan) {
@@ -98,9 +147,7 @@ export function importPlanJson(raw) {
     s.plan.id = raw.plan.id || ''
     s.plan.startDate = raw.plan.startDate || ''
     s.plan.endDate = raw.plan.endDate || ''
-    s.plan.weekStartsOn = raw.plan.weekStartsOn || 'monday'
     s.plan.weeklyTargetSessions = raw.plan.weeklyTargetSessions ?? 5
-    s.plan.rowBackbonePerWeek = raw.plan.rowBackbonePerWeek ?? 1
   }
   ;(raw.sessionTypes || []).forEach(st => {
     const ns = emptySessionType()
@@ -118,11 +165,8 @@ export function importPlanJson(raw) {
     if (st.log) {
       ns.log.type = st.log.type || 'completion'
       ns.log.track = Array.isArray(st.log.track) ? st.log.track.slice() : []
-      ns.log.exerciseLabel = st.log.exerciseLabel || ''
-      ns.log.order = st.log.order || 'sequential'
-      const exs = Array.isArray(st.log.exercises) ? st.log.exercises : []
-      ns.log.exercises = exs.map(importExercise)
-      ns.log.hasExercises = ns.log.type === 'single' && exs.length > 0
+      ns.log.blocks = importBlocksFromLog(st.log)
+      ns.log.hasExercises = ns.log.type === 'single' && ns.log.blocks.length > 0
     }
     s.sessionTypes.push(ns)
   })
@@ -180,23 +224,28 @@ function buildExercise(ex) {
   return out
 }
 
+function buildBlock(block) {
+  if (block.kind === 'circuit') {
+    const out = { kind: 'circuit', rounds: num(block.rounds) ?? 1, exercises: block.exercises.map(buildExercise) }
+    if (block.label) out.label = block.label
+    return out
+  }
+  return { kind: 'sequential', exercise: buildExercise(block.exercise) }
+}
+
 function buildLog(log, isRest) {
   if (isRest) return undefined
   const out = { type: log.type }
   if (log.type === 'completion') return out
   if (log.type === 'single') {
     out.track = log.track.slice()
-    if (log.hasExercises && log.exercises.length) {
-      if (log.exerciseLabel) out.exerciseLabel = log.exerciseLabel
-      out.order = log.order
-      out.exercises = log.exercises.map(buildExercise)
+    if (log.hasExercises && log.blocks.length) {
+      out.blocks = log.blocks.map(buildBlock)
     }
     return out
   }
   if (log.type === 'sets') {
-    out.exercises = log.exercises.map(buildExercise)
-    if (log.exerciseLabel) out.exerciseLabel = log.exerciseLabel
-    if (log.order && log.order !== 'sequential') out.order = log.order
+    out.blocks = log.blocks.map(buildBlock)
     return out
   }
   return out
@@ -237,12 +286,11 @@ export function buildExport(data) {
     title: data.plan.title || '',
     startDate: data.plan.startDate || '',
     endDate: data.plan.endDate || '',
-    weekStartsOn: data.plan.weekStartsOn || 'monday',
+    // Always Monday — see the note on defaultData().
+    weekStartsOn: 'monday',
   }
   const weekly = num(data.plan.weeklyTargetSessions)
   if (weekly !== undefined) plan.weeklyTargetSessions = weekly
-  const rowB = num(data.plan.rowBackbonePerWeek)
-  if (rowB !== undefined) plan.rowBackbonePerWeek = rowB
 
   const sessionTypes = data.sessionTypes.map(buildSessionType)
   const recommendations = data.recommendations.map(buildRecommendation).filter(Boolean)
@@ -305,14 +353,14 @@ function pbNumberInput(value, onChange, min) {
 }
 
 function pbDateInput(value, onChange) {
-  const i = el('input', { type: 'date', class: 'pb-input' })
+  const i = el('input', { type: 'date', class: 'pb-input pb-date-input' })
   i.value = value || ''
   i.addEventListener('input', () => onChange(i.value))
   return i
 }
 
 function pbTimeInput(value, onChange) {
-  const i = el('input', { type: 'time', class: 'pb-input' })
+  const i = el('input', { type: 'time', class: 'pb-input pb-date-input' })
   i.value = value || ''
   i.addEventListener('input', () => onChange(i.value))
   return i
@@ -414,26 +462,25 @@ function overlayBody() {
 
 // ── Session type editor (exercises live inline as expandable cards) ────
 
-function renderExerciseList(container, exercises, save) {
-  container.innerHTML = ''
-  exercises.forEach((ex, idx) => {
-    container.appendChild(renderExerciseCard(ex, () => { exercises.splice(idx, 1); save(); renderExerciseList(container, exercises, save) }, save))
-  })
-  container.appendChild(el('button', {
-    class: 'pb-add-btn', type: 'button',
-    onclick: () => { exercises.push(emptyExercise()); save(); renderExerciseList(container, exercises, save) },
-  }, [document.createTextNode('+ Add exercise')]))
-}
-
-function renderExerciseCard(ex, onRemove, save) {
+// Renders one exercise's fields (name, rep mode, tracked fields). Used
+// both for a sequential block's single exercise and for each exercise
+// nested inside a circuit block.
+//   opts.hideSets         — circuit members don't have their own set
+//                            count; the block's `rounds` governs it
+//   opts.hideRemoveButton — sequential blocks remove via the block's
+//                            own header button instead (one exercise,
+//                            same thing as removing the block)
+function renderExerciseCard(ex, onRemove, save, opts = {}) {
   const box = el('div', { class: 'pb-exercise' })
 
   const top = pbRow([
     pbField('Exercise name', pbTextInput(ex.name, 'e.g. DB lateral raise', v => { ex.name = v; save() })),
   ])
-  const setsField = pbField('Sets', pbNumberInput(ex.defaultSets, v => { ex.defaultSets = v; save() }, 0))
-  setsField.style.maxWidth = '90px'
-  top.appendChild(setsField)
+  if (!opts.hideSets) {
+    const setsField = pbField('Sets', pbNumberInput(ex.defaultSets, v => { ex.defaultSets = v; save() }, 0))
+    setsField.style.maxWidth = '90px'
+    top.appendChild(setsField)
+  }
   box.appendChild(top)
 
   const modeRow = el('div', { class: 'pb-toggle-row' })
@@ -468,11 +515,85 @@ function renderExerciseCard(ex, onRemove, save) {
 
   box.appendChild(pbField('Tracked fields', pbChips(ex.track, ['weight', 'reps', 'done'], save)))
 
-  const rmBtn = el('button', { class: 'pb-entry-remove', type: 'button', onclick: onRemove })
-  rmBtn.textContent = 'Remove exercise'
-  box.appendChild(rmBtn)
+  if (!opts.hideRemoveButton && onRemove) {
+    const rmBtn = el('button', { class: 'pb-entry-remove', type: 'button', onclick: onRemove })
+    rmBtn.textContent = 'Remove exercise'
+    box.appendChild(rmBtn)
+  }
 
   return box
+}
+
+// One block card: a sequential exercise, or a circuit wrapping several.
+// Up/down swap position in the blocks array (simplest reorder control
+// for touch — no drag needed), and the header makes it visually obvious
+// which kind of block this is, matching the tracker's own circuit styling.
+function renderBlockCard(block, idx, blocks, save, rerenderList) {
+  const isCircuit = block.kind === 'circuit'
+  const card = el('div', { class: 'pb-block ' + (isCircuit ? 'pb-block-circuit' : 'pb-block-sequential') })
+
+  const header = el('div', { class: 'pb-block-header' })
+  header.appendChild(el('span', { class: 'pb-block-kind', html: isCircuit ? 'Circuit' : 'Sequential' }))
+  header.appendChild(el('span', { class: 'pb-block-num', html: `Block ${idx + 1}` }))
+  const spacer = el('div', { style: 'flex:1' })
+  header.appendChild(spacer)
+  if (idx > 0) {
+    const moveUp = el('button', { class: 'pb-block-move', type: 'button', title: 'Move up', onclick: () => { [blocks[idx - 1], blocks[idx]] = [blocks[idx], blocks[idx - 1]]; save(); rerenderList() } })
+    moveUp.innerHTML = '↑'
+    header.appendChild(moveUp)
+  }
+  if (idx < blocks.length - 1) {
+    const moveDown = el('button', { class: 'pb-block-move', type: 'button', title: 'Move down', onclick: () => { [blocks[idx + 1], blocks[idx]] = [blocks[idx], blocks[idx + 1]]; save(); rerenderList() } })
+    moveDown.innerHTML = '↓'
+    header.appendChild(moveDown)
+  }
+  const rm = el('button', { class: 'pb-entry-remove', type: 'button', onclick: () => { blocks.splice(idx, 1); save(); rerenderList() } })
+  rm.textContent = 'Remove'
+  header.appendChild(rm)
+  card.appendChild(header)
+
+  if (isCircuit) {
+    card.appendChild(pbRow([
+      pbField('Rounds', pbNumberInput(block.rounds, v => { block.rounds = v; save() }, 1)),
+      pbField('Label (optional)', pbTextInput(block.label, 'e.g. Arm finisher', v => { block.label = v; save() })),
+    ]))
+    const exWrap = el('div', { class: 'pb-circuit-exercises' })
+    card.appendChild(exWrap)
+    const renderCircuitExercises = () => {
+      exWrap.innerHTML = ''
+      block.exercises.forEach((ex, exIdx) => {
+        exWrap.appendChild(renderExerciseCard(ex, () => { block.exercises.splice(exIdx, 1); save(); renderCircuitExercises() }, save, { hideSets: true }))
+      })
+      exWrap.appendChild(el('button', {
+        class: 'pb-add-btn', type: 'button',
+        onclick: () => { block.exercises.push(emptyExercise()); save(); renderCircuitExercises() },
+      }, [document.createTextNode('+ Add exercise to circuit')]))
+    }
+    renderCircuitExercises()
+  } else {
+    card.appendChild(renderExerciseCard(block.exercise, null, save, { hideRemoveButton: true }))
+  }
+
+  return card
+}
+
+function renderBlocksEditor(container, blocks, save) {
+  container.innerHTML = ''
+  const list = el('div', { class: 'pb-blocks' })
+  container.appendChild(list)
+  const rerenderList = () => renderBlocksEditor(container, blocks, save)
+  blocks.forEach((block, idx) => list.appendChild(renderBlockCard(block, idx, blocks, save, rerenderList)))
+
+  const addRow = el('div', { class: 'pb-block-add-row' })
+  addRow.appendChild(el('button', {
+    class: 'pb-add-btn', type: 'button',
+    onclick: () => { blocks.push(emptySequentialBlock()); save(); rerenderList() },
+  }, [document.createTextNode('+ Add sequential exercise')]))
+  addRow.appendChild(el('button', {
+    class: 'pb-add-btn', type: 'button',
+    onclick: () => { blocks.push(emptyCircuitBlock()); save(); rerenderList() },
+  }, [document.createTextNode('+ Add circuit')]))
+  container.appendChild(addRow)
 }
 
 function renderSessionEditor(sheet, rerender, close, s, save) {
@@ -526,26 +647,21 @@ function renderLogArea(container, s, save, rerenderEditor) {
 
   if (log.type === 'single') {
     container.appendChild(pbField('Value(s) recorded', pbChips(log.track, ['distance', 'lengths', 'duration'], save)))
-    container.appendChild(pbCheck(log.hasExercises, 'Also include a set/exercise breakdown (e.g. a finisher circuit)', v => { log.hasExercises = v; save(); renderLogArea(container, s, save, rerenderEditor) }))
+    container.appendChild(pbCheck(log.hasExercises, 'Also include an exercise breakdown (sequential and/or circuit blocks)', v => { log.hasExercises = v; save(); renderLogArea(container, s, save, rerenderEditor) }))
     if (log.hasExercises) {
-      container.appendChild(pbRow([
-        pbField('Breakdown label', pbTextInput(log.exerciseLabel, 'e.g. Arm finisher — superset × 2', v => { log.exerciseLabel = v; save() })),
-        pbField('Order', pbSelect(log.order, [['sequential', 'Sequential'], ['circuit', 'Circuit']], v => { log.order = v; save() })),
-      ]))
-      const exWrap = el('div', {})
-      container.appendChild(exWrap)
-      renderExerciseList(exWrap, log.exercises, save)
+      container.appendChild(hint('The distance/lengths field above always comes first, then these blocks in order — e.g. row’s own "1 × row" followed by a circuit.'))
+      const blocksWrap = el('div', {})
+      container.appendChild(blocksWrap)
+      renderBlocksEditor(blocksWrap, log.blocks, save)
     }
     return
   }
 
   if (log.type === 'sets') {
-    const exWrap = el('div', {})
-    container.appendChild(exWrap)
-    renderExerciseList(exWrap, log.exercises, save)
-
-    container.appendChild(pbField('Breakdown label (optional)', pbTextInput(log.exerciseLabel, '', v => { log.exerciseLabel = v; save() })))
-    container.appendChild(pbField('Order', pbSelect(log.order, [['sequential', 'Sequential'], ['circuit', 'Circuit']], v => { log.order = v; save() })))
+    container.appendChild(hint('Add blocks in the order they should be done. Sequential = one exercise, all its sets back-to-back. Circuit = several exercises, one set of each per round, repeated for N rounds. Mix and reorder freely.'))
+    const blocksWrap = el('div', {})
+    container.appendChild(blocksWrap)
+    renderBlocksEditor(blocksWrap, log.blocks, save)
   }
 }
 
@@ -779,11 +895,7 @@ function openPlanDetailsOverlay(data, save, onClose) {
       pbField('Start date', pbDateInput(data.plan.startDate, v => { data.plan.startDate = v; save() })),
       pbField('End date', pbDateInput(data.plan.endDate, v => { data.plan.endDate = v; save() })),
     ]))
-    body.appendChild(pbField('Week starts on', pbSelect(data.plan.weekStartsOn, [['monday', 'Monday'], ['sunday', 'Sunday']], v => { data.plan.weekStartsOn = v; save() })))
-    body.appendChild(pbRow([
-      pbField('Weekly target sessions', pbNumberInput(data.plan.weeklyTargetSessions, v => { data.plan.weeklyTargetSessions = v; save() }, 0)),
-      pbField('Row backbone per week', pbNumberInput(data.plan.rowBackbonePerWeek, v => { data.plan.rowBackbonePerWeek = v; save() }, 0)),
-    ]))
+    body.appendChild(pbField('Weekly target sessions', pbNumberInput(data.plan.weeklyTargetSessions, v => { data.plan.weeklyTargetSessions = v; save() }, 0)))
   }, onClose)
 }
 

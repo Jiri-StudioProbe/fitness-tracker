@@ -138,8 +138,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       // button (no metric field, nothing logged yet), skip straight past
       // it into the flow instead of landing on an empty-feeling page.
       if (logHasOnlyEntryButton(session, state)) {
-        const exercises = session.log.exercises ?? []
-        const steps = buildFlowSteps(exercises, session.log.order)
+        const steps = buildFlowSteps(normalizeBlocks(session.log))
         if (steps.length > 0) {
           state.flow = { steps, stepIndex: firstIncompleteStepIndex(steps, state) }
         }
@@ -219,8 +218,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
 
     // Guided flow: start / navigate
     sheet.querySelector('#start-flow')?.addEventListener('click', () => {
-      const exercises = session?.log?.exercises ?? []
-      const steps = buildFlowSteps(exercises, session?.log?.order)
+      const steps = buildFlowSteps(session?.log ? normalizeBlocks(session.log) : [])
       if (steps.length === 0) return
       state.flow = { steps, stepIndex: firstIncompleteStepIndex(steps, state) }
       render()
@@ -342,33 +340,73 @@ function renderSessionOption(session, flags, state) {
   `
 }
 
+// ── Exercise blocks ──────────────────────────────────────────────────
+// A session's exercise log is an ordered list of blocks:
+//   { kind: 'sequential', exercise }              — one exercise, all its
+//                                                     sets back-to-back
+//   { kind: 'circuit', rounds, exercises, label? } — several exercises,
+//                                                     one set of each per
+//                                                     round, for `rounds`
+//                                                     rounds
+// Blocks can mix freely in one session (e.g. row's own distance metric
+// followed by a sequential exercise, followed by a circuit).
+//
+// normalizeBlocks() also reads the older flat 'exercises' + 'order'
+// shape for plans authored before blocks existed.
+
+function normalizeBlocks(log) {
+  if (Array.isArray(log?.blocks)) return log.blocks
+  const exercises = log?.exercises ?? []
+  if (exercises.length === 0) return []
+  if (log.order === 'circuit') {
+    return [{
+      kind: 'circuit',
+      rounds: Math.max(1, ...exercises.map(ex => ex.defaultSets ?? 1)),
+      label: log.exerciseLabel,
+      exercises,
+    }]
+  }
+  return exercises.map(ex => ({ kind: 'sequential', exercise: ex }))
+}
+
+function blockExercises(block) {
+  return block.kind === 'circuit' ? block.exercises : [block.exercise]
+}
+
+function allExercises(blocks) {
+  return blocks.flatMap(blockExercises)
+}
+
 // ── Guided one-set-at-a-time flow ──────────────────────────────────────
 // Each exercise contributes one step per set (or a single step for
-// done/checkbox-tracked exercises like Plank). Order comes from the
-// plan JSON's log.order:
-//   'sequential' (default) — all sets of exercise 1, then exercise 2, ...
-//   'circuit'              — set 1 of every exercise, then set 2, ... —
-//                             for supersets/circuits done as rounds.
+// done/checkbox-tracked exercises like Plank). Sequential blocks walk
+// through the one exercise's sets in order; circuit blocks interleave
+// one set of every exercise in the block per round.
 
-function buildFlowSteps(exercises, order = 'sequential') {
-  const setCount = ex => ex.track?.includes('done') ? 1 : (ex.defaultSets ?? 1)
-  const kindOf = ex => ex.track?.includes('done') ? 'done' : 'value'
-
-  if (order === 'circuit') {
-    const steps = []
-    const rounds = Math.max(1, ...exercises.map(setCount))
-    for (let round = 0; round < rounds; round++) {
-      for (const ex of exercises) {
-        if (round < setCount(ex)) steps.push({ ex, setIndex: round, kind: kindOf(ex) })
-      }
-    }
-    return steps
-  }
+function buildFlowSteps(blocks) {
+  const isDone = ex => !!ex.track?.includes('done')
+  const kindOf = ex => isDone(ex) ? 'done' : 'value'
 
   const steps = []
-  for (const ex of exercises) {
-    for (let si = 0; si < setCount(ex); si++) {
-      steps.push({ ex, setIndex: si, kind: kindOf(ex) })
+  for (const block of blocks) {
+    if (block.kind === 'circuit') {
+      // Round count is the block's own `rounds`, not any per-exercise
+      // defaultSets (circuit members don't carry their own set count —
+      // the whole group repeats together). A done/checkbox exercise
+      // nested in a circuit still only needs marking once, though.
+      const rounds = block.rounds ?? 1
+      for (let round = 0; round < rounds; round++) {
+        for (const ex of block.exercises) {
+          if (isDone(ex) && round > 0) continue
+          steps.push({ ex, setIndex: round, kind: kindOf(ex), block })
+        }
+      }
+    } else {
+      const ex = block.exercise
+      const setCount = isDone(ex) ? 1 : (ex.defaultSets ?? 1)
+      for (let si = 0; si < setCount; si++) {
+        steps.push({ ex, setIndex: si, kind: kindOf(ex), block })
+      }
     }
   }
   return steps
@@ -390,8 +428,8 @@ function firstIncompleteStepIndex(steps, state) {
   return idx === -1 ? 0 : idx
 }
 
-function hasAnyLoggedData(exercises, state) {
-  return exercises.some(ex => {
+function hasAnyLoggedData(blocks, state) {
+  return allExercises(blocks).some(ex => {
     const sets = state.detail?.exercises?.[ex.name]
     if (!sets) return false
     return sets.some(s => (s?.weight ?? '') !== '' || (s?.reps ?? '') !== '' || s?.done)
@@ -403,33 +441,38 @@ function hasAnyLoggedData(exercises, state) {
 // so the Day page can skip straight into the flow instead.
 function logHasOnlyEntryButton(session, state) {
   if (!session?.log) return false
-  const exercises = session.log.exercises ?? []
-  if (exercises.length === 0) return false
+  const blocks = normalizeBlocks(session.log)
+  if (blocks.length === 0) return false
   const hasMetric = session.log.type === 'single' &&
     (session.log.track?.includes('distance') || session.log.track?.includes('lengths'))
   if (hasMetric) return false
-  return !hasAnyLoggedData(exercises, state)
+  return !hasAnyLoggedData(blocks, state)
 }
 
 function renderFlowScreen(state) {
   const { steps, stepIndex } = state.flow
   const step = steps[stepIndex]
-  const { ex, setIndex, kind } = step
+  const { ex, setIndex, kind, block } = step
   const isLast = stepIndex === steps.length - 1
   const nextStep = steps[stepIndex + 1]
-  const nextLabel = isLast ? 'Finish' : (nextStep && nextStep.ex !== ex ? 'Next exercise' : 'Next set')
+  const isCircuit = block.kind === 'circuit'
+  const nextLabel = isLast ? 'Finish'
+    : (!nextStep || nextStep.block !== block) ? 'Next block'
+    : nextStep.ex !== ex ? 'Next exercise'
+    : isCircuit ? 'Next round' : 'Next set'
   const current = state.detail?.exercises?.[ex.name]?.[setIndex] ?? {}
   const tracksWeight = ex.track?.includes('weight')
   const tracksReps = ex.track?.includes('reps')
-  const setCount = ex.defaultSets ?? 1
+  const setCount = isCircuit ? (block.rounds ?? 1) : (ex.defaultSets ?? 1)
   const progressPct = Math.round(((stepIndex + 1) / steps.length) * 100)
 
   return `
     <div class="flow-screen">
       <div class="flow-top">
         <div class="flow-progress-bar"><div class="flow-progress-fill" style="width:${progressPct}%"></div></div>
+        ${isCircuit ? `<div class="flow-circuit-label">${escHtml(block.label || 'Circuit')}</div>` : ''}
         <div class="flow-exercise-name">${escHtml(ex.name)}</div>
-        ${kind === 'value' && setCount > 1 ? `<div class="flow-set-label">Set ${setIndex + 1} of ${setCount}</div>` : ''}
+        ${kind === 'value' && setCount > 1 ? `<div class="flow-set-label">${isCircuit ? 'Round' : 'Set'} ${setIndex + 1} of ${setCount}</div>` : ''}
         ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
         ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
 
@@ -500,14 +543,36 @@ function renderExerciseRow(ex, state) {
   `
 }
 
+// A circuit block wraps its exercises in a bordered group with a header
+// (rounds + optional label) so it's visually obvious on the glanceable
+// view which exercises belong together as one circuit, as opposed to
+// sequential blocks which just render as standalone exercise cards.
+function renderBlock(block, state) {
+  if (block.kind !== 'circuit') return renderExerciseRow(block.exercise, state)
+
+  const rounds = block.rounds ?? Math.max(1, ...block.exercises.map(ex => ex.defaultSets ?? 1))
+  return `
+    <div class="circuit-block">
+      <div class="circuit-block-header">
+        <span class="circuit-badge">Circuit</span>
+        <span class="circuit-rounds">× ${rounds} round${rounds === 1 ? '' : 's'}</span>
+        ${block.label ? `<span class="circuit-block-label">${escHtml(block.label)}</span>` : ''}
+      </div>
+      <div class="circuit-block-exercises">
+        ${block.exercises.map(ex => renderExerciseRow(ex, state)).join('')}
+      </div>
+    </div>
+  `
+}
+
 // Renders the entry button (fresh), the guided flow (active), or the
 // glanceable all-fields view (once something has been logged).
-function renderExerciseLogSection(exercises, state, label) {
-  if (exercises.length === 0) return ''
+function renderExerciseLogSection(blocks, state, label) {
+  if (blocks.length === 0) return ''
 
   if (state.flow) return renderFlowScreen(state)
 
-  const hasData = hasAnyLoggedData(exercises, state)
+  const hasData = hasAnyLoggedData(blocks, state)
 
   if (!hasData) {
     return `
@@ -521,7 +586,7 @@ function renderExerciseLogSection(exercises, state, label) {
   return `
     <div class="log-section">
       <div class="section-label">${escHtml(label)}</div>
-      ${exercises.map(ex => renderExerciseRow(ex, state)).join('')}
+      ${blocks.map(b => renderBlock(b, state)).join('')}
       <button class="btn btn-ghost btn-full" id="start-flow">Continue guided log</button>
     </div>
   `
@@ -531,14 +596,13 @@ function renderLogDetail(session, state) {
   if (!session.log || session.log.type === 'completion') return ''
 
   if (session.log.type === 'sets') {
-    const exercises = session.log.exercises ?? []
-    return renderExerciseLogSection(exercises, state, 'Log (optional)')
+    return renderExerciseLogSection(normalizeBlocks(session.log), state, 'Log (optional)')
   }
 
   if (session.log.type === 'single') {
     const tracksDistance = session.log.track?.includes('distance')
     const tracksLengths = session.log.track?.includes('lengths')
-    const exercises = session.log.exercises ?? []
+    const blocks = normalizeBlocks(session.log)
     const hasMetric = tracksDistance || tracksLengths
 
     // The guided flow takes over the whole log area while active — the
@@ -563,7 +627,7 @@ function renderLogDetail(session, state) {
       </div>
     ` : ''
 
-    const exerciseSection = renderExerciseLogSection(exercises, state, session.log.exerciseLabel ?? 'Exercises (optional)')
+    const exerciseSection = renderExerciseLogSection(blocks, state, 'Exercises (optional)')
 
     return metricSection + exerciseSection
   }
