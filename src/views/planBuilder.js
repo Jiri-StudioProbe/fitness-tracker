@@ -41,13 +41,13 @@ function emptySequentialBlock() {
 }
 
 function emptyCircuitBlock() {
-  return { _id: uid(), kind: 'circuit', rounds: 2, label: '', exercises: [emptyExercise(), emptyExercise()] }
+  return { _id: uid(), kind: 'circuit', rounds: 2, label: '', exercises: [emptyExercise()] }
 }
 
 function emptySessionType() {
   return {
     _id: uid(),
-    id: '', name: '', location: '',
+    id: '', name: '',
     tags: { intensity: 'medium', modality: '', focus: '' },
     isLoadingSession: false,
     isRest: false,
@@ -58,10 +58,6 @@ function emptySessionType() {
 
 function emptyRecommendation() {
   return { _id: uid(), type: 'noConsecutiveByTag', tag: 'intensity', value: 'hard', session: '', count: 1, label: '', raw: '{\n  \n}' }
-}
-
-function emptyPhase() {
-  return { _id: uid(), name: '', start: '', end: '' }
 }
 
 function emptySupplement() {
@@ -75,7 +71,6 @@ function defaultData() {
     plan: { title: '', id: '', startDate: '', endDate: '', weeklyTargetSessions: 5 },
     sessionTypes: [],
     recommendations: [],
-    phases: [],
     supplements: [],
     fasting: { enabled: true, start: '19:00', end: '11:00' },
   }
@@ -153,7 +148,6 @@ export function importPlanJson(raw) {
     const ns = emptySessionType()
     ns.id = st.id || ''
     ns.name = st.name || ''
-    ns.location = st.location || ''
     ns.isRest = !!st.isRest
     ns.isLoadingSession = !!st.isLoadingSession
     ns.optional = !!st.optional
@@ -184,12 +178,6 @@ export function importPlanJson(raw) {
       nr.raw = JSON.stringify(r, null, 2)
     }
     s.recommendations.push(nr)
-  })
-  ;(raw.phases || []).forEach(p => {
-    const np = emptyPhase()
-    np.name = p.name || ''
-    if (Array.isArray(p.dateRange)) { np.start = p.dateRange[0] || ''; np.end = p.dateRange[1] || '' }
-    s.phases.push(np)
   })
   ;(raw.supplements || []).forEach(sp => {
     const ns = emptySupplement()
@@ -253,7 +241,6 @@ function buildLog(log, isRest) {
 
 function buildSessionType(s) {
   const out = { id: s.id || slugify(s.name), name: s.name || '' }
-  if (s.location) out.location = s.location
   if (s.isRest) { out.isRest = true; return out }
   const tags = {}
   if (s.tags.intensity) tags.intensity = s.tags.intensity
@@ -294,7 +281,6 @@ export function buildExport(data) {
 
   const sessionTypes = data.sessionTypes.map(buildSessionType)
   const recommendations = data.recommendations.map(buildRecommendation).filter(Boolean)
-  const phases = data.phases.filter(p => p.name).map(p => ({ name: p.name, dateRange: [p.start || '', p.end || ''] }))
   const supplements = data.supplements.filter(s => s.name).map(s => {
     const out = { name: s.name }
     if (s.dose) out.dose = s.dose
@@ -305,7 +291,7 @@ export function buildExport(data) {
   })
   const fasting = { enabled: !!data.fasting.enabled, window: { start: data.fasting.start || '', end: data.fasting.end || '' } }
 
-  return { plan, sessionTypes, recommendations, phases, supplements, fasting }
+  return { plan, sessionTypes, recommendations, supplements, fasting }
 }
 
 // ── generic small DOM helpers ────────────────────────────────────────
@@ -611,8 +597,6 @@ function renderSessionEditor(sheet, rerender, close, s, save) {
   suggestBtn.style.marginBottom = '14px'
   body.appendChild(suggestBtn)
 
-  body.appendChild(pbField('Location (optional)', pbTextInput(s.location, 'e.g. Gym, Home, Outdoor', v => { s.location = v; save() })))
-
   body.appendChild(pbCheck(s.isRest, 'This is a rest entry (no tags or logging)', v => { s.isRest = v; save(); rerender() }))
 
   if (!s.isRest) {
@@ -777,42 +761,6 @@ function openRecommendationsOverlay(data, save, onClose) {
       class: 'pb-add-btn', type: 'button',
       onclick: () => { data.recommendations.push(emptyRecommendation()); save(); rerender() },
     }, [document.createTextNode('+ Add recommendation')]))
-  }, onClose)
-}
-
-// ── Phases ───────────────────────────────────────────────────────────
-
-function openPhasesOverlay(data, save, onClose) {
-  openOverlay((sheet, rerender, close) => {
-    sheet.innerHTML = ''
-    overlayHeader(sheet, 'Phases', close)
-    const body = overlayBody()
-    sheet.appendChild(body)
-    body.appendChild(hint('Named date ranges shown as a pill in the app.'))
-
-    data.phases.forEach((p, idx) => {
-      const entry = el('div', { class: 'pb-entry' })
-      const head = el('div', { class: 'pb-entry-head' })
-      head.appendChild(el('span', { class: 'pb-entry-title' + (p.name ? '' : ' empty'), html: p.name ? escapeHtml(p.name) : 'Untitled phase' }))
-      const rm = el('button', { class: 'pb-entry-remove', type: 'button', onclick: () => { data.phases.splice(idx, 1); save(); rerender() } })
-      rm.textContent = 'Remove'
-      head.appendChild(rm)
-      entry.appendChild(head)
-
-      const bodyEntry = el('div', { class: 'pb-entry-body' })
-      bodyEntry.appendChild(pbField('Name', pbTextInput(p.name, 'e.g. Build', v => { p.name = v; save(); head.querySelector('.pb-entry-title').textContent = v || 'Untitled phase' })))
-      bodyEntry.appendChild(pbRow([
-        pbField('Start date', pbDateInput(p.start, v => { p.start = v; save() })),
-        pbField('End date', pbDateInput(p.end, v => { p.end = v; save() })),
-      ]))
-      entry.appendChild(bodyEntry)
-      body.appendChild(entry)
-    })
-
-    body.appendChild(el('button', {
-      class: 'pb-add-btn', type: 'button',
-      onclick: () => { data.phases.push(emptyPhase()); save(); rerender() },
-    }, [document.createTextNode('+ Add phase')]))
   }, onClose)
 }
 
@@ -1042,7 +990,6 @@ export function renderPlanBuilderView({ activePlan }) {
     card.appendChild(sectionLink('Plan details', data.plan.title || 'Untitled', () => openPlanDetailsOverlay(data, save, render)))
     card.appendChild(sectionLink('Session types', String(data.sessionTypes.length), () => openSessionTypesOverlay(data, save, render)))
     card.appendChild(sectionLink('Recommendations', String(data.recommendations.length), () => openRecommendationsOverlay(data, save, render)))
-    card.appendChild(sectionLink('Phases', String(data.phases.length), () => openPhasesOverlay(data, save, render)))
     card.appendChild(sectionLink('Supplements', String(data.supplements.length), () => openSupplementsOverlay(data, save, render)))
     card.appendChild(sectionLink('Fasting', data.fasting.enabled ? 'On' : 'Off', () => openFastingOverlay(data, save, render)))
     content.appendChild(card)

@@ -1286,6 +1286,12 @@ html, body {
   min-height: 48px;
 }
 
+/* The native calendar/clock icon defaults to a dark glyph, unreadable
+   against our dark inputs — invert it to white. */
+.pb-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
 /* Exercise blocks (sequential / circuit) inside a session's log */
 .pb-blocks {
   display: flex;
