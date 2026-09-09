@@ -409,6 +409,39 @@ function hint(text) {
   return p
 }
 
+// window.confirm()/alert() are silently no-ops in an iOS home-screen PWA
+// (display: standalone in the manifest) — WebKit never shows the native
+// dialog there, so confirm() just returns false immediately. These are
+// in-app replacements that actually work when installed.
+function dialogOverlay(messageText, buttons) {
+  const overlay = el('div', { class: 'pb-confirm-overlay' })
+  const box = el('div', { class: 'pb-confirm-box' })
+  const msg = el('p', { class: 'pb-confirm-message' })
+  msg.textContent = messageText
+  box.appendChild(msg)
+  const actions = el('div', { class: 'pb-confirm-actions' })
+  buttons.forEach(({ label, primary, onClick }) => {
+    const btn = el('button', { class: 'btn ' + (primary ? 'btn-primary' : 'btn-ghost'), type: 'button' })
+    btn.textContent = label
+    btn.addEventListener('click', () => { overlay.remove(); onClick?.() })
+    actions.appendChild(btn)
+  })
+  box.appendChild(actions)
+  overlay.appendChild(box)
+  document.body.appendChild(overlay)
+}
+
+function showConfirm(messageText, confirmLabel, onConfirm) {
+  dialogOverlay(messageText, [
+    { label: 'Cancel' },
+    { label: confirmLabel, primary: true, onClick: onConfirm },
+  ])
+}
+
+function showNotice(messageText) {
+  dialogOverlay(messageText, [{ label: 'OK', primary: true }])
+}
+
 // ── overlay: full-page stack, same pattern as the Day / Activity Log pages ──
 
 function openOverlay(renderContent, onClose) {
@@ -456,8 +489,29 @@ function overlayBody() {
 //   opts.hideRemoveButton — sequential blocks remove via the block's
 //                            own header button instead (one exercise,
 //                            same thing as removing the block)
+//   opts.exerciseIndex,
+//   opts.onMoveUp/onMoveDown — circuit members can be reordered within
+//                            the circuit; pass these (omit at either end
+//                            of the list) to show ↑/↓ controls
 function renderExerciseCard(ex, onRemove, save, opts = {}) {
   const box = el('div', { class: 'pb-exercise' })
+
+  if (opts.onMoveUp || opts.onMoveDown) {
+    const moveRow = el('div', { class: 'pb-exercise-move-row' })
+    moveRow.appendChild(el('span', { class: 'pb-block-num', html: `Exercise ${opts.exerciseIndex + 1}` }))
+    moveRow.appendChild(el('div', { style: 'flex:1' }))
+    if (opts.onMoveUp) {
+      const up = el('button', { class: 'pb-block-move', type: 'button', title: 'Move up', onclick: opts.onMoveUp })
+      up.innerHTML = '↑'
+      moveRow.appendChild(up)
+    }
+    if (opts.onMoveDown) {
+      const down = el('button', { class: 'pb-block-move', type: 'button', title: 'Move down', onclick: opts.onMoveDown })
+      down.innerHTML = '↓'
+      moveRow.appendChild(down)
+    }
+    box.appendChild(moveRow)
+  }
 
   const top = pbRow([
     pbField('Exercise name', pbTextInput(ex.name, 'e.g. DB lateral raise', v => { ex.name = v; save() })),
@@ -548,7 +602,16 @@ function renderBlockCard(block, idx, blocks, save, rerenderList) {
     const renderCircuitExercises = () => {
       exWrap.innerHTML = ''
       block.exercises.forEach((ex, exIdx) => {
-        exWrap.appendChild(renderExerciseCard(ex, () => { block.exercises.splice(exIdx, 1); save(); renderCircuitExercises() }, save, { hideSets: true }))
+        exWrap.appendChild(renderExerciseCard(ex, () => { block.exercises.splice(exIdx, 1); save(); renderCircuitExercises() }, save, {
+          hideSets: true,
+          exerciseIndex: exIdx,
+          onMoveUp: exIdx > 0
+            ? () => { [block.exercises[exIdx - 1], block.exercises[exIdx]] = [block.exercises[exIdx], block.exercises[exIdx - 1]]; save(); renderCircuitExercises() }
+            : undefined,
+          onMoveDown: exIdx < block.exercises.length - 1
+            ? () => { [block.exercises[exIdx + 1], block.exercises[exIdx]] = [block.exercises[exIdx], block.exercises[exIdx + 1]]; save(); renderCircuitExercises() }
+            : undefined,
+        }))
       })
       exWrap.appendChild(el('button', {
         class: 'pb-add-btn', type: 'button',
@@ -963,7 +1026,7 @@ export function renderPlanBuilderView({ activePlan }) {
         save()
         render()
       } catch (err) {
-        alert('Could not read that file as JSON: ' + err.message)
+        showNotice('Could not read that file as JSON: ' + err.message)
       }
       e.target.value = ''
     })
@@ -1002,10 +1065,11 @@ export function renderPlanBuilderView({ activePlan }) {
     const resetBtn = el('button', { class: 'btn btn-ghost btn-full', type: 'button', style: 'margin-top:8px' })
     resetBtn.textContent = 'Start over'
     resetBtn.addEventListener('click', () => {
-      if (!confirm('Discard this draft and start over?')) return
-      data = null
-      clearDraft()
-      render()
+      showConfirm('Discard this draft and start over?', 'Discard', () => {
+        data = null
+        clearDraft()
+        render()
+      })
     })
     content.appendChild(resetBtn)
   }
