@@ -5,8 +5,7 @@
     "startDate": "2026-06-01",
     "endDate": "2026-07-20",
     "weekStartsOn": "monday",
-    "weeklyTargetSessions": 5,
-    "rowBackbonePerWeek": 1
+    "weeklyTargetSessions": 5
   },
 
   "sessionTypes": [
@@ -18,13 +17,13 @@
       "isLoadingSession": true,
       "log": {
         "type": "sets",
-        "exercises": [
-          { "name": "DB overhead press",            "repRange": [8, 10],  "defaultSets": 3, "track": ["weight", "reps"] },
-          { "name": "DB lateral raise",             "repRange": [12, 15], "defaultSets": 3, "track": ["weight", "reps"] },
-          { "name": "Push-ups / DB floor press",    "repRange": [8, 10],  "defaultSets": 3, "track": ["reps"] },
-          { "name": "DB overhead triceps extension","repRange": [10, 12], "defaultSets": 3, "track": ["weight", "reps"] },
-          { "name": "Plank",                        "target": "40–60s",   "defaultSets": 2, "track": ["done"] },
-          { "name": "Dead bug",                     "target": "10 / side","defaultSets": 2, "track": ["done"] }
+        "blocks": [
+          { "kind": "sequential", "exercise": { "name": "DB overhead press",             "repRange": [8, 10],  "defaultSets": 3, "track": ["weight", "reps"] } },
+          { "kind": "sequential", "exercise": { "name": "DB lateral raise",              "repRange": [12, 15], "defaultSets": 3, "track": ["weight", "reps"] } },
+          { "kind": "sequential", "exercise": { "name": "Push-ups / DB floor press",     "repRange": [8, 10],  "defaultSets": 3, "track": ["reps"] } },
+          { "kind": "sequential", "exercise": { "name": "DB overhead triceps extension", "repRange": [10, 12], "defaultSets": 3, "track": ["weight", "reps"] } },
+          { "kind": "sequential", "exercise": { "name": "Plank",                         "target": "40–60s",   "defaultSets": 2, "track": ["done"] } },
+          { "kind": "sequential", "exercise": { "name": "Dead bug",                      "target": "10 / side","defaultSets": 2, "track": ["done"] } }
         ]
       }
     },
@@ -37,13 +36,18 @@
       "log": {
         "type": "single",
         "track": ["distance"],
-        "exerciseLabel": "Arm finisher — superset × 2",
-        "order": "circuit",
-        "exercises": [
-          { "name": "DB lateral raise", "repRange": [12, 15], "defaultSets": 2, "track": ["weight", "reps"] },
-          { "name": "Bicep curl",       "repRange": [10, 12], "defaultSets": 2, "track": ["weight", "reps"] },
-          { "name": "Hammer curl",      "repRange": [10, 12], "defaultSets": 2, "track": ["weight", "reps"] },
-          { "name": "Rear delt fly",    "repRange": [10, 12], "defaultSets": 2, "track": ["weight", "reps"] }
+        "blocks": [
+          {
+            "kind": "circuit",
+            "rounds": 2,
+            "label": "Arm finisher — superset × 2",
+            "exercises": [
+              { "name": "DB lateral raise", "repRange": [12, 15], "track": ["weight", "reps"] },
+              { "name": "Bicep curl",       "repRange": [10, 12], "track": ["weight", "reps"] },
+              { "name": "Hammer curl",      "repRange": [10, 12], "track": ["weight", "reps"] },
+              { "name": "Rear delt fly",    "repRange": [10, 12], "track": ["weight", "reps"] }
+            ]
+          }
         ]
       }
     },

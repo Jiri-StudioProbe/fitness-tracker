@@ -479,6 +479,58 @@ html, body {
   letter-spacing: 0.05em;
 }
 
+/* A circuit block groups its exercises inside one accent-bordered
+   container so it's visually obvious they run together as rounds,
+   as opposed to sequential blocks which are just standalone cards. */
+.circuit-block {
+  border: 1.5px solid var(--accent-ring);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--accent-dim);
+}
+
+.circuit-block-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px 10px;
+  flex-wrap: wrap;
+}
+
+.circuit-badge {
+  font-size: 12px;
+  font-weight: 500;
+  color: #000;
+  background: var(--accent);
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.circuit-rounds {
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.circuit-block-label {
+  font-size: 13px;
+  color: var(--muted);
+  width: 100%;
+}
+
+.circuit-block-exercises {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.flow-circuit-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .exercise-row {
   background: var(--surface2);
   border-radius: var(--radius-sm);
@@ -1224,6 +1276,93 @@ html, body {
 
 .pb-validation.ok { background: rgba(62,207,110,0.1); color: #3ecf6e; }
 .pb-validation.bad { background: rgba(232,93,93,0.1); color: var(--danger); }
+
+/* Date/time pickers get a bigger tap target and 16px+ font — under 16px
+   iOS Safari zooms the whole page in on focus, which is exactly the
+   opposite of "nice and mobile friendly". */
+.pb-date-input {
+  font-size: 16px;
+  padding: 12px 14px;
+  min-height: 48px;
+}
+
+/* Exercise blocks (sequential / circuit) inside a session's log */
+.pb-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.pb-block {
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.pb-block-sequential {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+.pb-block-circuit {
+  background: var(--accent-dim);
+  border: 1.5px solid var(--accent-ring);
+}
+
+.pb-block-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pb-block-kind {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.pb-block-circuit .pb-block-kind {
+  background: var(--accent);
+  color: #000;
+}
+
+.pb-block-num {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pb-block-move {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.pb-block-move:active { background: var(--border); }
+
+.pb-circuit-exercises {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.pb-block-add-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
 
 /* ── Animations ── */
 @keyframes fade-in {
