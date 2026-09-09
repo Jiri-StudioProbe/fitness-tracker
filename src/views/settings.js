@@ -1,5 +1,6 @@
 import { validatePlan, applyRepair } from '../plan.js'
-import { db } from '../db.js'
+import { cloudDb } from '../cloud/cloudDb.js'
+import { currentUser } from '../cloud/auth.js'
 
 function readFileAsText(file) {
   return new Promise((resolve, reject) => {
@@ -10,9 +11,11 @@ function readFileAsText(file) {
   })
 }
 
-export function renderSettingsView({ plan, onPlanLoaded }) {
+export function renderSettingsView({ plan, onPlanLoaded, onSignOut }) {
   const el = document.createElement('div')
   el.className = 'screen'
+
+  const email = currentUser()?.email ?? ''
 
   el.innerHTML = `
     <div class="topbar">
@@ -43,17 +46,12 @@ export function renderSettingsView({ plan, onPlanLoaded }) {
       </div>
 
       <div class="card">
-        <div class="section-label" style="margin-bottom:12px">Backup</div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <button class="btn btn-ghost btn-full" id="export-btn">Export all data</button>
-          <label class="btn btn-ghost btn-full" style="cursor:pointer">
-            Import backup
-            <input type="file" id="backup-file" accept=".json" style="display:none" />
-          </label>
-        </div>
-        <p class="text-sm text-muted" style="margin-top:10px;line-height:1.6">
-          iOS may clear app storage under pressure. Export regularly and keep a copy in Files or iCloud.
+        <div class="section-label" style="margin-bottom:8px">Account</div>
+        <div style="font-size:14px;color:var(--text);margin-bottom:12px">${email}</div>
+        <p class="text-sm text-muted" style="margin-bottom:12px;line-height:1.6">
+          Your training log is stored in the cloud against this account, synced across devices.
         </p>
+        <button class="btn btn-ghost btn-full" id="sign-out-btn">Sign out</button>
       </div>
     </div>
   `
@@ -69,7 +67,7 @@ export function renderSettingsView({ plan, onPlanLoaded }) {
       const raw = JSON.parse(text)
       const { valid, errors } = validatePlan(raw)
       if (valid) {
-        await db.savePlan(raw)
+        await cloudDb.savePlan(raw)
         onPlanLoaded(raw)
       } else {
         pendingPlan = raw
@@ -86,33 +84,7 @@ export function renderSettingsView({ plan, onPlanLoaded }) {
     e.target.value = ''
   })
 
-  el.querySelector('#export-btn').addEventListener('click', async () => {
-    const data = await db.exportAll()
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `fitness-backup-${new Date().toISOString().slice(0,10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  })
-
-  el.querySelector('#backup-file').addEventListener('change', async e => {
-    const file = e.target.files[0]
-    if (!file) return
-    try {
-      const text = await readFileAsText(file)
-      const data = JSON.parse(text)
-      await db.importAll(data)
-      // reload the latest plan
-      const plans = await db.getAllPlans()
-      if (plans.length > 0) onPlanLoaded(plans[plans.length - 1])
-      alert('Backup restored.')
-    } catch (err) {
-      alert('Import failed: ' + err.message)
-    }
-    e.target.value = ''
-  })
+  el.querySelector('#sign-out-btn').addEventListener('click', () => onSignOut())
 
   return el
 }
@@ -168,7 +140,7 @@ function renderRepair(container, raw, errors, onPlanLoaded) {
       return
     }
 
-    await db.savePlan(patched)
+    await cloudDb.savePlan(patched)
     onPlanLoaded(patched)
     container.innerHTML = ''
   })

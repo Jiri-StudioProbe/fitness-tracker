@@ -1,5 +1,7 @@
 import './styles/main.css'
-import { db } from './db.js'
+import { cloudDb } from './cloud/cloudDb.js'
+import { onAuthChange, completeSignInIfLink, signOutUser } from './cloud/auth.js'
+import { renderSignInView } from './views/signIn.js'
 import { weekStart, today, prevWeek, nextWeek, weekDates } from './dates.js'
 import { weekStats } from './engine.js'
 import { renderWeekView } from './views/week.js'
@@ -17,19 +19,70 @@ const state = {
   tab: 'week',
 }
 
-async function init() {
-  // Load plan from db (most recently saved)
-  const plans = await db.getAllPlans()
+// ── Auth gate ──────────────────────────────────────────────────────────
+
+function askForEmailInline() {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div')
+    overlay.className = 'pb-confirm-overlay'
+    overlay.innerHTML = `
+      <div class="pb-confirm-box">
+        <p class="pb-confirm-message">Confirm the email you requested the sign-in link with:</p>
+        <input type="email" id="confirm-email-input" class="pb-input" placeholder="you@example.com" autocomplete="email" />
+        <div class="pb-confirm-actions">
+          <button class="btn btn-ghost" id="confirm-email-cancel">Cancel</button>
+          <button class="btn btn-primary" id="confirm-email-ok">Continue</button>
+        </div>
+      </div>
+    `
+    document.body.appendChild(overlay)
+    overlay.querySelector('#confirm-email-cancel').addEventListener('click', () => { overlay.remove(); resolve(null) })
+    overlay.querySelector('#confirm-email-ok').addEventListener('click', () => {
+      const v = overlay.querySelector('#confirm-email-input').value.trim()
+      overlay.remove()
+      resolve(v || null)
+    })
+  })
+}
+
+async function boot() {
+  // No-op unless this page load is a sign-in link; if it is, this may
+  // complete the sign-in (triggering onAuthChange below) or ask for the
+  // email once via askForEmailInline if opened on a different device.
+  try {
+    await completeSignInIfLink({ promptForEmail: askForEmailInline })
+  } catch (err) {
+    console.error('Sign-in link failed:', err)
+  }
+
+  onAuthChange(async user => {
+    if (user) {
+      cloudDb.setUser(user.uid)
+      await initApp()
+    } else {
+      cloudDb.clearUser()
+      renderSignedOut()
+    }
+  })
+}
+
+function renderSignedOut() {
+  app.innerHTML = ''
+  app.appendChild(renderSignInView())
+}
+
+// ── Signed-in app ────────────────────────────────────────────────────
+
+async function initApp() {
+  const plans = await cloudDb.getAllPlans()
   if (plans.length > 0) {
     state.plan = plans[plans.length - 1]
   }
 
-  // Load all day records
-  const days = await db.getAllDays()
+  const days = await cloudDb.getAllDays()
   state.dayRecords = Object.fromEntries(days.map(d => [d.date, d]))
 
-  // Restore last viewed week — only trust it if it's actually a Monday
-  const savedWeek = await db.getMeta('currentWeek')
+  const savedWeek = await cloudDb.getMeta('currentWeek')
   if (savedWeek && new Date(savedWeek + 'T00:00:00').getDay() === 1) {
     state.currentWeek = savedWeek
   }
@@ -55,17 +108,17 @@ function render() {
       onDayTap: openDaySheet,
       onPrevWeek: () => {
         state.currentWeek = prevWeek(state.currentWeek)
-        db.setMeta('currentWeek', state.currentWeek)
+        cloudDb.setMeta('currentWeek', state.currentWeek)
         render()
       },
       onNextWeek: () => {
         state.currentWeek = nextWeek(state.currentWeek)
-        db.setMeta('currentWeek', state.currentWeek)
+        cloudDb.setMeta('currentWeek', state.currentWeek)
         render()
       },
       onToday: () => {
         state.currentWeek = weekStart(today())
-        db.setMeta('currentWeek', state.currentWeek)
+        cloudDb.setMeta('currentWeek', state.currentWeek)
         render()
       },
     })
@@ -80,7 +133,10 @@ function render() {
         state.plan = plan
         state.tab = 'week'
         render()
-      }
+      },
+      onSignOut: async () => {
+        await signOutUser()
+      },
     })
     main.appendChild(view)
   }
@@ -114,7 +170,7 @@ function renderNoplan(container) {
         reader.readAsText(file)
       })
       const raw = JSON.parse(text)
-      await db.savePlan(raw)
+      await cloudDb.savePlan(raw)
       state.plan = raw
       render()
     } catch (err) {
@@ -164,7 +220,7 @@ function openDaySheet(date) {
       render()
     },
     onSave: async (record, celebrate) => {
-      await db.saveDay(record)
+      await cloudDb.saveDay(record)
       state.dayRecords[record.date] = record
       overlay.remove()
 
@@ -204,4 +260,4 @@ function showCelebration(record, cb) {
   }
 }
 
-init()
+boot()
