@@ -12,7 +12,6 @@
     {
       "id": "push",
       "name": "Push session",
-      "location": "Home (dumbbells)",
       "tags": { "intensity": "hard", "modality": "push", "focus": "upper" },
       "isLoadingSession": true,
       "log": {
@@ -30,7 +29,6 @@
     {
       "id": "row",
       "name": "Row + arm finisher",
-      "location": "Gym",
       "tags": { "intensity": "hard", "modality": "row", "focus": "whole" },
       "isLoadingSession": true,
       "log": {
@@ -54,21 +52,18 @@
     {
       "id": "swim",
       "name": "Swim",
-      "location": "Pool",
       "tags": { "intensity": "medium", "modality": "swim" },
       "log": { "type": "single", "track": ["lengths"] }
     },
     {
       "id": "easy-run",
       "name": "Easy 5k run",
-      "location": "Outdoor",
       "tags": { "intensity": "easy", "modality": "run" },
       "log": { "type": "completion" }
     },
     {
       "id": "long-run",
       "name": "Long run",
-      "location": "Outdoor",
       "tags": { "intensity": "hard", "modality": "run" },
       "isLoadingSession": true,
       "log": { "type": "completion" }
@@ -76,7 +71,6 @@
     {
       "id": "optional-easy",
       "name": "Optional easy row/swim",
-      "location": "Gym / pool",
       "optional": true,
       "tags": { "intensity": "easy" },
       "log": { "type": "completion" }
@@ -93,12 +87,6 @@
     { "type": "noConsecutiveByTag", "tag": "modality", "value": "run" },
     { "type": "restAfterHard" },
     { "type": "minPerWeek", "session": "row", "count": 1, "label": "Row backbone" }
-  ],
-
-  "phases": [
-    { "name": "Re-entry", "dateRange": ["2026-06-01", "2026-06-14"] },
-    { "name": "Build", "dateRange": ["2026-06-15", "2026-07-05"] },
-    { "name": "Sharpen", "dateRange": ["2026-07-06", "2026-07-20"] }
   ],
 
   "supplements": [
