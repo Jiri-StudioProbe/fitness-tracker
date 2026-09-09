@@ -1189,6 +1189,13 @@ html, body {
   margin-bottom: 8px;
 }
 
+.pb-exercise-move-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
 /* Chips (tracked fields, presets) */
 .pb-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 
@@ -1276,6 +1283,41 @@ html, body {
 
 .pb-validation.ok { background: rgba(62,207,110,0.1); color: #3ecf6e; }
 .pb-validation.bad { background: rgba(232,93,93,0.1); color: var(--danger); }
+
+/* In-app stand-in for window.confirm()/alert() — see the note above
+   dialogOverlay() in planBuilder.js for why. */
+.pb-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 300;
+}
+
+.pb-confirm-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  max-width: 360px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pb-confirm-message {
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.pb-confirm-actions { display: flex; gap: 10px; }
+.pb-confirm-actions .btn { flex: 1; }
 
 /* Date/time pickers get a bigger tap target and 16px+ font — under 16px
    iOS Safari zooms the whole page in on focus, which is exactly the
