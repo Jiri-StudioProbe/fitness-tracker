@@ -31,6 +31,17 @@ jobs:
       - run: npm ci
 
       - run: npm run build
+        env:
+          # Firebase web config isn't secret (see src/cloud/firebaseConfig.js)
+          # — access control is Firestore security rules, not hiding these.
+          # Set as repository *variables* (not secrets) in
+          # Settings → Secrets and variables → Actions → Variables.
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_USE_EMULATORS: 'false'
 
       - uses: actions/configure-pages@v4
 

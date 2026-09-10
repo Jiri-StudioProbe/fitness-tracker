@@ -22,8 +22,12 @@ function num(v) {
 
 // ── empty / default builders ────────────────────────────────────────
 
+// `id` is the exercise's stable identity for cloud history/charts — set
+// once from the name the first time it's non-empty (see the exercise-name
+// input below), then left untouched by later renames. `_id` is unrelated:
+// a builder-only React-key-style value for this editing session.
 function emptyExercise() {
-  return { _id: uid(), name: '', repMode: 'range', repMin: '', repMax: '', target: '', defaultSets: '', track: ['weight', 'reps'] }
+  return { _id: uid(), id: '', name: '', repMode: 'range', repMin: '', repMax: '', target: '', defaultSets: '', track: ['weight', 'reps'] }
 }
 
 // A session's exercise log is an ordered list of blocks. Each is either:
@@ -99,6 +103,9 @@ function clearDraft() {
 function importExercise(e) {
   const out = emptyExercise()
   out.name = e.name || ''
+  // Backfill an id for exercises authored before ids existed; once a plan
+  // carries a real id, that's the one that sticks (see buildExercise).
+  out.id = e.id || slugify(e.name || '')
   if (e.repRange) { out.repMode = 'range'; out.repMin = e.repRange[0]; out.repMax = e.repRange[1] }
   else if (e.target) { out.repMode = 'target'; out.target = e.target }
   out.defaultSets = e.defaultSets ?? ''
@@ -200,7 +207,7 @@ export function importPlanJson(raw) {
 // ── export: builder data shape -> raw plan JSON ─────────────────────
 
 function buildExercise(ex) {
-  const out = { name: ex.name || '' }
+  const out = { id: ex.id || slugify(ex.name || ''), name: ex.name || '' }
   if (ex.repMode === 'range' && (ex.repMin !== '' || ex.repMax !== '')) {
     out.repRange = [num(ex.repMin) ?? 0, num(ex.repMax) ?? 0]
   } else if (ex.repMode === 'target' && ex.target) {
@@ -514,7 +521,14 @@ function renderExerciseCard(ex, onRemove, save, opts = {}) {
   }
 
   const top = pbRow([
-    pbField('Exercise name', pbTextInput(ex.name, 'e.g. DB lateral raise', v => { ex.name = v; save() })),
+    pbField('Exercise name', pbTextInput(ex.name, 'e.g. DB lateral raise', v => {
+      ex.name = v
+      // Lock the stable id in the first time this exercise gets a real
+      // name, then leave it alone — a later rename shouldn't sever its
+      // logged history.
+      if (!ex.id && v.trim()) ex.id = slugify(v)
+      save()
+    })),
   ])
   if (!opts.hideSets) {
     const setsField = pbField('Sets', pbNumberInput(ex.defaultSets, v => { ex.defaultSets = v; save() }, 0))
