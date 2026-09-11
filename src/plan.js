@@ -68,16 +68,6 @@ export function validatePlan(raw) {
   return { valid: errors.length === 0, errors }
 }
 
-export function applyRepair(raw, path, value) {
-  const keys = path.replace(/\[(\d+)\]/g, '.$1').split('.')
-  let obj = raw
-  for (let i = 0; i < keys.length - 1; i++) {
-    obj = obj[keys[i]]
-  }
-  obj[keys[keys.length - 1]] = value
-  return raw
-}
-
 export function getSessionById(plan, id) {
   return plan.sessionTypes.find(s => s.id === id) ?? null
 }
