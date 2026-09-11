@@ -79,7 +79,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         ${!state.logOpen && state.completed ? '<span class="phase-pill text-accent" style="border-color:var(--accent);background:var(--accent-dim)">Completed ✓</span>' : ''}
       </div>
       <div class="sheet-body">
-        ${state.logOpen ? (session ? renderLogDetail(session, state) : '') : `
+        ${state.logOpen ? (session ? renderLogDetail(session, state, dayRecords, date) : '') : `
 
           <!-- Activity picker -->
           <div>
@@ -458,6 +458,34 @@ function firstIncompleteStepIndex(steps, state) {
   return idx === -1 ? 0 : idx
 }
 
+// ── Previous-performance hints ──────────────────────────────────────
+// Looks back through history (never the day currently open) for the
+// most recent day that logged this exercise, so the log screen can show
+// it as lightweight context ("here's what you did last time") without
+// pre-filling or auto-copying it into today's entry. Matches by exercise
+// name — the same name across sessions/weeks is treated as the same
+// exercise, same as the rest of the logging model.
+function findPreviousSet(dayRecords, date, exName, setIndex) {
+  const priorDates = Object.keys(dayRecords).filter(d => d < date).sort().reverse()
+  for (const d of priorDates) {
+    const sets = dayRecords[d]?.detail?.exercises?.[exName]
+    if (!sets || sets.length === 0) continue
+    const set = sets[setIndex] ?? sets[sets.length - 1]
+    const hasValue = set && ((set.weight ?? '') !== '' || (set.reps ?? '') !== '' || set.done)
+    if (hasValue) return set
+  }
+  return null
+}
+
+function formatPrevSet(ex, set) {
+  if (!set) return ''
+  if (ex.track?.includes('done')) return set.done ? 'Last time: done ✓' : ''
+  const parts = []
+  if (ex.track?.includes('weight') && (set.weight ?? '') !== '') parts.push(`${set.weight}kg`)
+  if (ex.track?.includes('reps') && (set.reps ?? '') !== '') parts.push(`${set.reps} reps`)
+  return parts.length ? `Last time: ${parts.join(' × ')}` : ''
+}
+
 function hasAnyLoggedData(blocks, state) {
   return allExercises(blocks).some(ex => {
     const sets = state.detail?.exercises?.[ex.name]
@@ -479,7 +507,7 @@ function logHasOnlyEntryButton(session, state) {
   return !hasAnyLoggedData(blocks, state)
 }
 
-function renderFlowScreen(state) {
+function renderFlowScreen(state, dayRecords, date) {
   const { steps, stepIndex } = state.flow
   const step = steps[stepIndex]
   const { ex, setIndex, kind, block } = step
@@ -495,6 +523,7 @@ function renderFlowScreen(state) {
   const tracksReps = ex.track?.includes('reps')
   const setCount = isCircuit ? (block.rounds ?? 1) : (ex.defaultSets ?? 1)
   const progressPct = Math.round(((stepIndex + 1) / steps.length) * 100)
+  const prevHint = formatPrevSet(ex, findPreviousSet(dayRecords, date, ex.name, setIndex))
 
   return `
     <div class="flow-screen">
@@ -505,6 +534,7 @@ function renderFlowScreen(state) {
         ${kind === 'value' && setCount > 1 ? `<div class="flow-set-label">${isCircuit ? 'Round' : 'Set'} ${setIndex + 1} of ${setCount}</div>` : ''}
         ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
         ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
+        ${prevHint ? `<div class="flow-prev-hint">${escHtml(prevHint)}</div>` : ''}
 
         ${kind === 'done' ? `
           <button class="flow-done-btn ${current.done ? 'checked' : ''}" id="flow-done-toggle">
@@ -533,13 +563,14 @@ function renderFlowScreen(state) {
   `
 }
 
-function renderExerciseRow(ex, state) {
+function renderExerciseRow(ex, state, dayRecords, date) {
   const defaultCount = ex.defaultSets ?? 1
   const emptySet = ex.track?.includes('done') ? { done: false } : { weight: '', reps: '' }
   const sets = state.detail?.exercises?.[ex.name] ?? Array.from({ length: defaultCount }, () => ({ ...emptySet }))
   const tracksWeight = ex.track?.includes('weight')
   const tracksReps = ex.track?.includes('reps')
   const tracksDone = ex.track?.includes('done')
+  const doneHint = tracksDone ? formatPrevSet(ex, findPreviousSet(dayRecords, date, ex.name, 0)) : ''
 
   return `
     <div class="exercise-row">
@@ -547,25 +578,31 @@ function renderExerciseRow(ex, state) {
       ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
       ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
       ${tracksDone ? `
+        ${doneHint ? `<div class="set-prev-hint">${escHtml(doneHint)}</div>` : ''}
         <label class="done-row">
           <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" />
           <span class="done-label">Done</span>
         </label>
       ` : `
         <div class="sets-row">
-          ${sets.map((set, si) => `
-            <div class="set-input-group">
-              ${tracksWeight ? `
-                <input type="number" class="set-input set-weight" inputmode="decimal" placeholder="—" value="${escHtml(set.weight ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
-                <span class="set-input-label">kg</span>
-                <span class="set-input-label" style="margin:0 2px">×</span>
-              ` : ''}
-              ${tracksReps ? `
-                <input type="number" class="set-input set-reps" inputmode="numeric" placeholder="—" value="${escHtml(set.reps ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
-                <span class="set-input-label">reps</span>
-              ` : ''}
+          ${sets.map((set, si) => {
+            const prevHint = formatPrevSet(ex, findPreviousSet(dayRecords, date, ex.name, si))
+            return `
+            <div class="set-with-hint">
+              ${prevHint ? `<div class="set-prev-hint">${escHtml(prevHint)}</div>` : ''}
+              <div class="set-input-group">
+                ${tracksWeight ? `
+                  <input type="number" class="set-input set-weight" inputmode="decimal" placeholder="—" value="${escHtml(set.weight ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
+                  <span class="set-input-label">kg</span>
+                  <span class="set-input-label" style="margin:0 2px">×</span>
+                ` : ''}
+                ${tracksReps ? `
+                  <input type="number" class="set-input set-reps" inputmode="numeric" placeholder="—" value="${escHtml(set.reps ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
+                  <span class="set-input-label">reps</span>
+                ` : ''}
+              </div>
             </div>
-          `).join('')}
+          `}).join('')}
           <button class="add-set-btn" data-ex="${escHtml(ex.name)}">+ Set</button>
         </div>
       `}
@@ -577,8 +614,8 @@ function renderExerciseRow(ex, state) {
 // (rounds + optional label) so it's visually obvious on the glanceable
 // view which exercises belong together as one circuit, as opposed to
 // sequential blocks which just render as standalone exercise cards.
-function renderBlock(block, state) {
-  if (block.kind !== 'circuit') return renderExerciseRow(block.exercise, state)
+function renderBlock(block, state, dayRecords, date) {
+  if (block.kind !== 'circuit') return renderExerciseRow(block.exercise, state, dayRecords, date)
 
   const rounds = block.rounds ?? Math.max(1, ...block.exercises.map(ex => ex.defaultSets ?? 1))
   return `
@@ -589,7 +626,7 @@ function renderBlock(block, state) {
         ${block.label ? `<span class="circuit-block-label">${escHtml(block.label)}</span>` : ''}
       </div>
       <div class="circuit-block-exercises">
-        ${block.exercises.map(ex => renderExerciseRow(ex, state)).join('')}
+        ${block.exercises.map(ex => renderExerciseRow(ex, state, dayRecords, date)).join('')}
       </div>
     </div>
   `
@@ -597,10 +634,10 @@ function renderBlock(block, state) {
 
 // Renders the entry button (fresh), the guided flow (active), or the
 // glanceable all-fields view (once something has been logged).
-function renderExerciseLogSection(blocks, state, label) {
+function renderExerciseLogSection(blocks, state, label, dayRecords, date) {
   if (blocks.length === 0) return ''
 
-  if (state.flow) return renderFlowScreen(state)
+  if (state.flow) return renderFlowScreen(state, dayRecords, date)
 
   const hasData = hasAnyLoggedData(blocks, state)
 
@@ -616,17 +653,17 @@ function renderExerciseLogSection(blocks, state, label) {
   return `
     <div class="log-section">
       <div class="section-label">${escHtml(label)}</div>
-      ${blocks.map(b => renderBlock(b, state)).join('')}
+      ${blocks.map(b => renderBlock(b, state, dayRecords, date)).join('')}
       <button class="btn btn-ghost btn-full" id="start-flow">Continue guided log</button>
     </div>
   `
 }
 
-function renderLogDetail(session, state) {
+function renderLogDetail(session, state, dayRecords, date) {
   if (!session.log || session.log.type === 'completion') return ''
 
   if (session.log.type === 'sets') {
-    return renderExerciseLogSection(normalizeBlocks(session.log), state, 'Log (optional)')
+    return renderExerciseLogSection(normalizeBlocks(session.log), state, 'Log (optional)', dayRecords, date)
   }
 
   if (session.log.type === 'single') {
@@ -637,7 +674,7 @@ function renderLogDetail(session, state) {
 
     // The guided flow takes over the whole log area while active — the
     // metric field can wait until it's done or exited.
-    if (state.flow) return renderFlowScreen(state)
+    if (state.flow) return renderFlowScreen(state, dayRecords, date)
 
     const metricSection = hasMetric ? `
       <div class="log-section">
@@ -657,7 +694,7 @@ function renderLogDetail(session, state) {
       </div>
     ` : ''
 
-    const exerciseSection = renderExerciseLogSection(blocks, state, 'Exercises (optional)')
+    const exerciseSection = renderExerciseLogSection(blocks, state, 'Exercises (optional)', dayRecords, date)
 
     return metricSection + exerciseSection
   }

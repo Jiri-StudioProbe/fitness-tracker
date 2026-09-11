@@ -579,6 +579,18 @@ html, body {
   gap: 10px;
 }
 
+.set-with-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.set-prev-hint {
+  font-size: 13px;
+  color: var(--muted);
+  padding-left: 2px;
+}
+
 .set-input-group {
   display: flex;
   align-items: center;
@@ -703,6 +715,11 @@ html, body {
   font-size: 22px;
   font-weight: 400;
   color: var(--accent);
+}
+
+.flow-prev-hint {
+  font-size: 15px;
+  color: var(--muted);
 }
 
 .flow-input-group {
