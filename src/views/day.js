@@ -1,4 +1,4 @@
-import { dayName, today } from '../dates.js'
+import { formatDayHeader, today } from '../dates.js'
 import { recommendDay, FLAG } from '../engine.js'
 import { getSessionById, getSupplementsForDay } from '../plan.js'
 import { showConfirm } from '../dialogs.js'
@@ -71,7 +71,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         <div class="flex items-center justify-between">
           <span class="sheet-title">${state.logOpen
             ? escHtml(state.activityLabel ?? 'Log')
-            : `${dayName(date)}, ${parseInt(date.slice(8), 10)}/${parseInt(date.slice(5, 7), 10)}`}</span>
+            : formatDayHeader(date)}</span>
           <button class="btn-icon" id="close-btn">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           </button>

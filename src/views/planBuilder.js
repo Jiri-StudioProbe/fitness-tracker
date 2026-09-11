@@ -1,6 +1,7 @@
 import { validatePlan } from '../plan.js'
 import { cloudDb } from '../cloud/cloudDb.js'
 import { showConfirm, showNotice } from '../dialogs.js'
+import { currentUser } from '../cloud/auth.js'
 
 const DRAFT_KEY = 'planBuilderDraft'
 
@@ -905,7 +906,7 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-export function renderPlanBuilderView({ activePlanId, onPlanActivated, onActivePlanUpdated }) {
+export function renderPlanBuilderView({ activePlanId, onPlanActivated, onActivePlanUpdated, onSignOut }) {
   const root = document.createElement('div')
   root.className = 'screen'
 
@@ -1032,6 +1033,15 @@ export function renderPlanBuilderView({ activePlanId, onPlanActivated, onActiveP
       }
       e.target.value = ''
     })
+
+    const email = currentUser()?.email ?? ''
+    const accountCard = el('div', { class: 'card', style: 'margin-top:16px' })
+    accountCard.appendChild(el('div', { class: 'section-label', style: 'margin-bottom:8px', html: 'Account' }))
+    if (email) accountCard.appendChild(el('div', { style: 'font-size:14px;color:var(--text);margin-bottom:12px', html: escapeHtml(email) }))
+    const signOutBtn = el('button', { class: 'btn btn-ghost btn-full', type: 'button', onclick: () => onSignOut?.() })
+    signOutBtn.textContent = 'Sign out'
+    accountCard.appendChild(signOutBtn)
+    content.appendChild(accountCard)
   }
 
   // ── Options: one specific plan ──────────────────────────────────────
