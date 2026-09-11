@@ -58,6 +58,24 @@ export function dayName(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long' })
 }
 
+function ordinal(n) {
+  if (n % 100 >= 11 && n % 100 <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1: return `${n}st`
+    case 2: return `${n}nd`
+    case 3: return `${n}rd`
+    default: return `${n}th`
+  }
+}
+
+// e.g. "Monday 7th September" — used for the Day sheet's header.
+export function formatDayHeader(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00')
+  const weekday = d.toLocaleDateString('en-GB', { weekday: 'long' })
+  const month = d.toLocaleDateString('en-GB', { month: 'long' })
+  return `${weekday} ${ordinal(d.getDate())} ${month}`
+}
+
 export function shortDayName(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short' })
 }

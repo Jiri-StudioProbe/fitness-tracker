@@ -1,6 +1,7 @@
-import { dayName, today } from '../dates.js'
+import { formatDayHeader, today } from '../dates.js'
 import { recommendDay, FLAG } from '../engine.js'
 import { getSessionById, getSupplementsForDay } from '../plan.js'
+import { showConfirm } from '../dialogs.js'
 
 const FLAG_LABELS = {
   [FLAG.CONSECUTIVE_HARD]: 'Two hard sessions in a row',
@@ -42,6 +43,14 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     return state.activityId ? getSessionById(plan, state.activityId) : null
   }
 
+  function hasAnythingToClear() {
+    return !!(
+      state.activityId || state.activityType || state.completed ||
+      state.supplements.length || state.fasting ||
+      Object.keys(state.detail).length
+    )
+  }
+
   function advanceFlow(dir) {
     if (!state.flow) return
     const next = state.flow.stepIndex + dir
@@ -62,7 +71,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         <div class="flex items-center justify-between">
           <span class="sheet-title">${state.logOpen
             ? escHtml(state.activityLabel ?? 'Log')
-            : `${dayName(date)}, ${parseInt(date.slice(8), 10)}/${parseInt(date.slice(5, 7), 10)}`}</span>
+            : formatDayHeader(date)}</span>
           <button class="btn-icon" id="close-btn">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           </button>
@@ -108,6 +117,10 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
 
           ${state.completed ? `
             <button class="btn btn-full btn-ghost" id="uncomplete-btn" style="margin-top:-4px">Undo completion</button>
+          ` : ''}
+
+          ${hasAnythingToClear() ? `
+            <button class="btn btn-full btn-danger" id="clear-day-btn" style="margin-top:16px">Clear day</button>
           ` : ''}
 
         `}
@@ -274,6 +287,23 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     sheet.querySelector('#uncomplete-btn')?.addEventListener('click', () => {
       state.completed = false
       render()
+    })
+
+    // Clear day — wipes everything chosen/logged for this date and saves
+    // it that way, so the Week view shows this day empty again. save()
+    // already closes the sheet (see #close-btn above), returning to Week.
+    sheet.querySelector('#clear-day-btn')?.addEventListener('click', () => {
+      showConfirm('Clear this day? This removes the activity, log, and completion status — the day will show as empty.', 'Clear day', () => {
+        state.activityId = null
+        state.activityType = null
+        state.activityLabel = null
+        state.completed = false
+        state.detail = {}
+        state.supplements = []
+        state.fasting = null
+        state.customText = ''
+        save(false)
+      })
     })
   }
 

@@ -13,12 +13,10 @@ export function renderWeekView({ plan, dayRecords, currentWeek, onDayTap, onPrev
   el.className = 'screen'
 
   el.innerHTML = `
-    <div class="topbar">
-      <span class="topbar-title">Trainer</span>
-      <div class="flex items-center gap-8">
-        ${phase ? `<span class="phase-pill">${phase.name}</span>` : ''}
-      </div>
-    </div>
+    ${phase ? `
+    <div class="topbar" style="justify-content:flex-end">
+      <span class="phase-pill">${phase.name}</span>
+    </div>` : ''}
     <div class="content">
 
       ${streak > 0 ? `

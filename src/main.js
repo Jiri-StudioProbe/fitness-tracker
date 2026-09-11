@@ -6,8 +6,6 @@ import { weekStart, today, prevWeek, nextWeek, weekDates } from './dates.js'
 import { weekStats } from './engine.js'
 import { renderWeekView } from './views/week.js'
 import { renderDaySheet } from './views/day.js'
-import { renderSettingsView } from './views/settings.js'
-import { renderProgressView } from './views/progress.js'
 import { renderPlanBuilderView } from './views/planBuilder.js'
 
 const app = document.getElementById('app')
@@ -124,14 +122,17 @@ function render() {
         render()
       },
       // Editing the already-active plan and hitting Save pushes it live
-      // without any navigation — just refresh the in-memory copy so
-      // Week/Progress pick it up next time they're viewed, no reload
-      // needed. Deliberately no render() here: the Plan Builder is still
-      // open and mid-edit; forcing a full re-render would yank it out
-      // from under the user.
+      // without any navigation — just refresh the in-memory copy so the
+      // Week view picks it up next time it's viewed, no reload needed.
+      // Deliberately no render() here: the Plan Builder is still open and
+      // mid-edit; forcing a full re-render would yank it out from under
+      // the user.
       onActivePlanUpdated: plan => {
         state.plan = plan
         state.activePlanId = plan.plan.id
+      },
+      onSignOut: async () => {
+        await signOutUser()
       },
     }))
   } else if (!state.plan) {
@@ -156,17 +157,6 @@ function render() {
         state.currentWeek = weekStart(today())
         cloudDb.setMeta('currentWeek', state.currentWeek)
         render()
-      },
-    })
-    main.appendChild(view)
-  } else if (state.tab === 'progress') {
-    const view = renderProgressView({ plan: state.plan, dayRecords: state.dayRecords })
-    main.appendChild(view)
-  } else if (state.tab === 'settings') {
-    const view = renderSettingsView({
-      plan: state.plan,
-      onSignOut: async () => {
-        await signOutUser()
       },
     })
     main.appendChild(view)
@@ -202,17 +192,9 @@ function renderNavTabs() {
       <span class="nav-tab-icon">📅</span>
       <span class="nav-tab-label">Week</span>
     </button>
-    <button class="nav-tab ${state.tab === 'progress' ? 'active' : ''}" data-tab="progress">
-      <span class="nav-tab-icon">📈</span>
-      <span class="nav-tab-label">Progress</span>
-    </button>
     <button class="nav-tab ${state.tab === 'plan' ? 'active' : ''}" data-tab="plan">
       <span class="nav-tab-icon">📝</span>
       <span class="nav-tab-label">Plan</span>
-    </button>
-    <button class="nav-tab ${state.tab === 'settings' ? 'active' : ''}" data-tab="settings">
-      <span class="nav-tab-icon">⚙️</span>
-      <span class="nav-tab-label">Settings</span>
     </button>
   `
   nav.addEventListener('click', e => {
