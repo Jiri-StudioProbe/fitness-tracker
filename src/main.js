@@ -14,6 +14,7 @@ const app = document.getElementById('app')
 
 const state = {
   plan: null,
+  activePlanId: null,
   dayRecords: {},
   currentWeek: weekStart(today()),
   tab: 'week',
@@ -73,11 +74,28 @@ function renderSignedOut() {
 
 // ── Signed-in app ────────────────────────────────────────────────────
 
-async function initApp() {
-  const plans = await cloudDb.getAllPlans()
-  if (plans.length > 0) {
-    state.plan = plans[plans.length - 1]
+// Which plan is "active" is its own explicit pointer (meta.activePlanId),
+// not just "whichever was saved most recently" — see the Plan Builder's
+// Saved plans list for where that pointer actually gets set.
+async function resolveActivePlan() {
+  const plans = await cloudDb.getAllPlans() // newest-first
+  const activeId = await cloudDb.getMeta('activePlanId')
+  let active = activeId ? plans.find(p => p.id === activeId) : undefined
+
+  // Pre-upgrade accounts have plans but no activePlanId pointer yet (it
+  // used to just be "whichever was saved last"). Adopt the newest one as
+  // active once, so upgrading doesn't look like the plan disappeared.
+  if (!active && !activeId && plans.length > 0) {
+    active = plans[0]
+    await cloudDb.setMeta('activePlanId', active.id)
   }
+
+  state.plan = active ?? null
+  state.activePlanId = active?.id ?? null
+}
+
+async function initApp() {
+  await resolveActivePlan()
 
   const days = await cloudDb.getAllDays()
   state.dayRecords = Object.fromEntries(days.map(d => [d.date, d]))
@@ -97,7 +115,16 @@ function render() {
   main.style.cssText = 'flex:1;display:flex;flex-direction:column;overflow:hidden'
 
   if (state.tab === 'plan') {
-    main.appendChild(renderPlanBuilderView({ activePlan: state.plan }))
+    main.appendChild(renderPlanBuilderView({
+      activePlan: state.plan,
+      activePlanId: state.activePlanId,
+      onPlanActivated: plan => {
+        state.plan = plan
+        state.activePlanId = plan.plan.id
+        state.tab = 'week'
+        render()
+      },
+    }))
   } else if (!state.plan) {
     renderNoplan(main)
   } else if (state.tab === 'week') {
@@ -129,11 +156,6 @@ function render() {
   } else if (state.tab === 'settings') {
     const view = renderSettingsView({
       plan: state.plan,
-      onPlanLoaded: plan => {
-        state.plan = plan
-        state.tab = 'week'
-        render()
-      },
       onSignOut: async () => {
         await signOutUser()
       },
@@ -151,31 +173,14 @@ function renderNoplan(container) {
   el.innerHTML = `
     <div class="empty-state">
       <div class="empty-icon">🏋️</div>
-      <div class="empty-title">No plan loaded</div>
-      <div class="empty-body">Import your training plan JSON to get started.</div>
-      <label class="btn btn-primary" style="cursor:pointer">
-        Import plan
-        <input type="file" accept=".json" id="quick-import" style="display:none" />
-      </label>
+      <div class="empty-title">No active plan</div>
+      <div class="empty-body">Build one, import a JSON file, or activate a saved plan in the Plan tab.</div>
+      <button class="btn btn-primary" id="goto-plan-tab">Go to Plan Builder</button>
     </div>
   `
-  el.querySelector('#quick-import').addEventListener('change', async e => {
-    const file = e.target.files[0]
-    if (!file) return
-    try {
-      const text = await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = ev => resolve(ev.target.result)
-        reader.onerror = () => reject(reader.error)
-        reader.readAsText(file)
-      })
-      const raw = JSON.parse(text)
-      await cloudDb.savePlan(raw)
-      state.plan = raw
-      render()
-    } catch (err) {
-      alert('Could not read file: ' + err.message)
-    }
+  el.querySelector('#goto-plan-tab').addEventListener('click', () => {
+    state.tab = 'plan'
+    render()
   })
   container.appendChild(el)
 }

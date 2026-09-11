@@ -1,5 +1,5 @@
 import {
-  doc, setDoc, getDoc, getDocs, collection, query, orderBy, serverTimestamp,
+  doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, orderBy, serverTimestamp,
 } from 'firebase/firestore'
 import { firestore } from './firebase.js'
 
@@ -34,13 +34,15 @@ export const cloudDb = {
   },
 
   getAllPlans: async () => {
-    // Oldest-first, so callers picking `plans[plans.length - 1]` (as
-    // main.js does) get the most recently saved plan — same convention
-    // db.js's callers already rely on, now actually ordered by recency
-    // rather than IndexedDB's arbitrary key order.
-    const snap = await getDocs(query(userCollection('plans'), orderBy('_savedAt', 'asc')))
+    // Newest-first — which plan is *active* is a separate, explicit
+    // concept (see meta['activePlanId'] in main.js), not "whichever was
+    // saved last." This ordering just makes the saved-plans list read
+    // naturally (most recent work at the top).
+    const snap = await getDocs(query(userCollection('plans'), orderBy('_savedAt', 'desc')))
     return snap.docs.map(d => d.data())
   },
+
+  deletePlan: id => deleteDoc(doc(userCollection('plans'), id)),
 
   saveDay: day => setDoc(doc(userCollection('days'), day.date), day),
 
