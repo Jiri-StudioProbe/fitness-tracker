@@ -1113,10 +1113,27 @@ html, body {
 
 .pb-section-link:active { background: var(--border); }
 
+.pb-section-link.pb-active {
+  background: var(--accent-dim);
+  border-color: var(--accent-ring);
+}
+
 .pb-section-link-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pb-section-link-name { font-size: 16px; font-weight: 500; color: var(--text); }
 .pb-section-link-count { font-size: 13px; color: var(--muted); }
 .pb-section-link-arrow { color: var(--muted); flex-shrink: 0; }
+
+.pb-active-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #000;
+  background: var(--accent);
+  padding: 3px 9px;
+  border-radius: 20px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 
 /* List entry cards (session / recommendation / phase / supplement) */
 .pb-entry {
