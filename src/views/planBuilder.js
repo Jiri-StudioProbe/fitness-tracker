@@ -925,230 +925,130 @@ function openPlanDetailsOverlay(data, save, onClose) {
   }, onClose)
 }
 
-// ── Saved plans ──────────────────────────────────────────────────────
-// Every plan that's been Saved from Preview & export lands here, active
-// or not. Exactly one plan is active (the one the tracker trains from)
-// at a time — activating a different one, or deleting an inactive one,
-// both happen from this list.
-
-function openSavedPlansOverlay({ activePlanId, onPlanActivated, onEditPlan }, onClose) {
-  let plans = null // null = still loading
-  let error = null
-
-  openOverlay((sheet, rerender, close) => {
-    sheet.innerHTML = ''
-    overlayHeader(sheet, 'Saved plans', close)
-    const body = overlayBody()
-    sheet.appendChild(body)
-    body.appendChild(hint('Everything you\'ve saved from Preview & export. Exactly one is active for training at a time.'))
-
-    if (error) {
-      const errBox = el('div', { class: 'pb-validation bad' })
-      errBox.textContent = error
-      body.appendChild(errBox)
-      return
-    }
-
-    if (plans === null) {
-      cloudDb.getAllPlans()
-        .then(list => { plans = list; rerender() })
-        .catch(err => { error = err.message || 'Could not load saved plans.'; rerender() })
-      body.appendChild(el('p', { class: 'text-sm text-muted' }, [document.createTextNode('Loading…')]))
-      return
-    }
-
-    if (plans.length === 0) {
-      body.appendChild(el('p', { class: 'text-sm text-muted' }, [document.createTextNode('Nothing saved yet — build a plan and hit Save on the Preview & export screen.')]))
-      return
-    }
-
-    plans.forEach(p => {
-      const isActive = p.id === activePlanId
-      const entry = el('div', { class: 'pb-entry' })
-      const head = el('div', { class: 'pb-entry-head' })
-      head.appendChild(el('span', { class: 'pb-entry-title', html: escapeHtml(p.plan?.title || p.id) }))
-      if (isActive) head.appendChild(el('span', { class: 'pb-entry-badge', html: 'active' }))
-      entry.appendChild(head)
-
-      const bodyEntry = el('div', { class: 'pb-entry-body' })
-      const sub = el('p', { class: 'text-sm text-muted', style: 'margin:0 0 14px' })
-      sub.textContent = `${p.plan?.startDate || '?'} → ${p.plan?.endDate || '?'}`
-      bodyEntry.appendChild(sub)
-
-      const actions = el('div', { style: 'display:flex;flex-direction:column;gap:8px' })
-
-      if (!isActive) {
-        const activateBtn = el('button', { class: 'btn btn-primary btn-full', type: 'button' })
-        activateBtn.textContent = 'Activate'
-        activateBtn.addEventListener('click', async () => {
-          activateBtn.disabled = true
-          activateBtn.textContent = 'Activating…'
-          try {
-            await cloudDb.setMeta('activePlanId', p.id)
-            close()
-            onPlanActivated(p)
-          } catch (err) {
-            showNotice('Could not activate: ' + err.message)
-            activateBtn.disabled = false
-            activateBtn.textContent = 'Activate'
-          }
-        })
-        actions.appendChild(activateBtn)
-      }
-
-      const editBtn = el('button', { class: 'btn btn-ghost btn-full', type: 'button' })
-      editBtn.textContent = 'Load into editor'
-      editBtn.addEventListener('click', () => { close(); onEditPlan(p) })
-      actions.appendChild(editBtn)
-
-      const deleteBtn = el('button', { class: 'btn btn-ghost btn-full', type: 'button' })
-      deleteBtn.textContent = 'Delete'
-      deleteBtn.addEventListener('click', () => {
-        if (isActive) {
-          showNotice('This is the active plan — activate a different one before deleting it.')
-          return
-        }
-        showConfirm(`Delete "${p.plan?.title || p.id}"? This can't be undone.`, 'Delete', async () => {
-          try {
-            await cloudDb.deletePlan(p.id)
-            plans = plans.filter(x => x.id !== p.id)
-            rerender()
-          } catch (err) {
-            showNotice('Could not delete: ' + err.message)
-          }
-        })
-      })
-      actions.appendChild(deleteBtn)
-
-      bodyEntry.appendChild(actions)
-      entry.appendChild(bodyEntry)
-      body.appendChild(entry)
-    })
-  }, onClose)
-}
-
-// ── Preview & export ─────────────────────────────────────────────────
-
-function openPreviewOverlay(data) {
-  openOverlay((sheet, rerender, close) => {
-    sheet.innerHTML = ''
-    overlayHeader(sheet, 'Preview & export', close)
-    const body = overlayBody()
-    sheet.appendChild(body)
-    body.appendChild(hint('Regenerates from the current form state.'))
-
-    const exported = buildExport(data)
-    const { valid, errors } = validatePlan(exported)
-    const validation = el('div', { class: 'pb-validation ' + (valid ? 'ok' : 'bad') })
-    validation.textContent = valid
-      ? '✓ Valid plan — the tracker will accept this as-is.'
-      : `${errors.length} issue${errors.length > 1 ? 's' : ''}: ` + errors.map(e => e.msg).join('; ')
-    body.appendChild(validation)
-
-    const saveBtn = el('button', { class: 'btn btn-primary btn-full', type: 'button', style: 'margin-bottom:8px' })
-    saveBtn.textContent = 'Save'
-    saveBtn.disabled = !valid
-    saveBtn.addEventListener('click', async () => {
-      saveBtn.disabled = true
-      saveBtn.textContent = 'Saving…'
-      try {
-        await cloudDb.savePlan(exported)
-        saveBtn.textContent = 'Saved ✓'
-        setTimeout(() => { saveBtn.textContent = 'Save'; saveBtn.disabled = false }, 1500)
-      } catch (err) {
-        showNotice('Could not save: ' + err.message)
-        saveBtn.textContent = 'Save'
-        saveBtn.disabled = false
-      }
-    })
-    body.appendChild(saveBtn)
-    body.appendChild(hint('Saving doesn\'t activate it — do that from Saved plans on the previous screen.'))
-
-    const filenameField = pbField('Filename', pbTextInput((exported.plan.id || 'plan') + '.json', '', () => {}))
-    const filenameInput = filenameField.querySelector('input')
-    body.appendChild(filenameField)
-
-    const actions = el('div', { class: 'pb-entry-actions', style: 'margin-bottom:14px' })
-    const copyBtn = el('button', { class: 'btn btn-ghost btn-full', type: 'button' })
-    copyBtn.textContent = 'Copy JSON'
-    copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(JSON.stringify(exported, null, 2))
-      copyBtn.textContent = 'Copied ✓'
-      setTimeout(() => { copyBtn.textContent = 'Copy JSON' }, 1500)
-    })
-    const downloadBtn = el('button', { class: 'btn btn-primary btn-full', type: 'button' })
-    downloadBtn.textContent = 'Download JSON'
-    downloadBtn.addEventListener('click', () => {
-      const text = JSON.stringify(exported, null, 2)
-      const blob = new Blob([text], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filenameInput.value.trim() || 'plan.json'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    })
-    actions.appendChild(copyBtn)
-    actions.appendChild(downloadBtn)
-    body.appendChild(actions)
-
-    const pre = el('pre', { class: 'pb-preview' })
-    pre.textContent = JSON.stringify(exported, null, 2)
-    body.appendChild(pre)
-  })
-}
-
 // ── root view (the 'Plan' tab's base content) ───────────────────────
+//
+// Navigation is plans-first: the tab lands on a list of every saved
+// plan (active one clearly marked), and tapping one opens its options
+// screen (details/session types/etc, plus Save/Activate/Delete/export).
+// There's no separate "preview" step — export is just two buttons on
+// that same screen.
 
 function escapeHtml(str) {
   return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-export function renderPlanBuilderView({ activePlan, activePlanId, onPlanActivated }) {
+export function renderPlanBuilderView({ activePlanId, onPlanActivated, onActivePlanUpdated }) {
   const root = document.createElement('div')
   root.className = 'screen'
 
-  let data = loadDraft()
+  // 'list' (every saved plan) or 'options' (editing one specific plan,
+  // held in `data` — same shape/localStorage-autosave as always).
+  let view = 'list'
+  let data = null
+  // True once *this* plan.id has a real Firestore doc behind it — from
+  // opening an existing saved plan, or after this session's first
+  // successful Save of a new/imported one. Activate and Delete both
+  // need this: Activate always pushes live whatever's actually saved
+  // (never unsaved in-memory edits), so there must be something saved
+  // to point at; Delete obviously needs something there to remove.
+  let hasSavedAtLeastOnce = false
 
   function save() { saveDraft(data) }
 
   function render() {
     root.innerHTML = ''
-    if (!data) {
-      renderEntry()
-    } else {
-      renderHome()
-    }
+    if (view === 'options' && data) renderOptions()
+    else renderList()
   }
 
-  function renderEntry() {
+  function openPlan(planDoc) {
+    data = importPlanJson(planDoc)
+    hasSavedAtLeastOnce = true
+    save()
+    view = 'options'
+    render()
+  }
+
+  function openBlankPlan() {
+    data = defaultData()
+    hasSavedAtLeastOnce = false
+    save()
+    view = 'options'
+    render()
+  }
+
+  function openImportedPlan(raw) {
+    data = importPlanJson(raw)
+    hasSavedAtLeastOnce = false
+    save()
+    view = 'options'
+    render()
+  }
+
+  function sectionLink(name, count, onClick, opts = {}) {
+    const link = el('div', { class: 'pb-section-link' + (opts.active ? ' pb-active' : ''), onclick: onClick })
+    const main = el('div', { class: 'pb-section-link-main' })
+    main.appendChild(el('span', { class: 'pb-section-link-name', html: escapeHtml(name) }))
+    if (count !== undefined) main.appendChild(el('span', { class: 'pb-section-link-count', html: escapeHtml(count) }))
+    link.appendChild(main)
+    if (opts.active) link.appendChild(el('span', { class: 'pb-active-badge', html: 'Active' }))
+    link.appendChild(el('span', { class: 'pb-section-link-arrow', html: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l5 4-5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' }))
+    return link
+  }
+
+  // ── List: every saved plan ──────────────────────────────────────────
+
+  function renderList() {
     root.innerHTML = `
       <div class="topbar"><span class="topbar-title">Plan builder</span></div>
-      <div class="content plan-builder-content">
-        <div class="card" style="display:flex;flex-direction:column;gap:10px">
-          <div class="section-label">Start</div>
-          ${activePlan ? `<button class="btn btn-primary btn-full" id="pb-edit-active">Edit current plan</button>` : ''}
-          <label class="btn btn-ghost btn-full" style="cursor:pointer">
-            Import a JSON file…
-            <input type="file" id="pb-import-file" accept="application/json" style="display:none" />
-          </label>
-          <button class="btn btn-ghost btn-full" id="pb-new">Start a blank plan</button>
-        </div>
-      </div>
+      <div class="content plan-builder-content" id="pb-list-content"></div>
     `
-    root.querySelector('#pb-edit-active')?.addEventListener('click', () => {
-      data = importPlanJson(activePlan)
-      save()
-      render()
-    })
-    root.querySelector('#pb-new').addEventListener('click', () => {
-      data = defaultData()
-      save()
-      render()
-    })
-    root.querySelector('#pb-import-file').addEventListener('change', async e => {
+    const content = root.querySelector('#pb-list-content')
+    content.appendChild(hint('Every plan you’ve saved. Tap one to view or edit it — exactly one can be active for training at a time.'))
+
+    const listWrap = el('div', {})
+    content.appendChild(listWrap)
+
+    function renderPlansList() {
+      listWrap.innerHTML = ''
+      cloudDb.getAllPlans().then(plans => {
+        listWrap.innerHTML = ''
+        if (plans.length === 0) {
+          listWrap.appendChild(el('p', { class: 'text-sm text-muted' }, [document.createTextNode('Nothing saved yet — start a blank plan or import a JSON file below.')]))
+          return
+        }
+        const card = el('div', { class: 'card', style: 'display:flex;flex-direction:column;gap:8px' })
+        plans.forEach(p => {
+          const isActive = p.id === activePlanId
+          card.appendChild(sectionLink(
+            p.plan?.title || p.id,
+            isActive ? undefined : (p.plan?.startDate ? `${p.plan.startDate} → ${p.plan.endDate}` : undefined),
+            () => openPlan(p),
+            { active: isActive },
+          ))
+        })
+        listWrap.appendChild(card)
+      }).catch(err => {
+        listWrap.innerHTML = ''
+        const errBox = el('div', { class: 'pb-validation bad' })
+        errBox.textContent = err.message || 'Could not load saved plans.'
+        listWrap.appendChild(errBox)
+      })
+      listWrap.appendChild(el('p', { class: 'text-sm text-muted' }, [document.createTextNode('Loading…')]))
+    }
+    renderPlansList()
+
+    const newBtn = el('button', { class: 'btn btn-primary btn-full', type: 'button', style: 'margin-top:16px' })
+    newBtn.textContent = '+ New plan'
+    newBtn.addEventListener('click', openBlankPlan)
+    content.appendChild(newBtn)
+
+    const importLabel = el('label', { class: 'btn btn-ghost btn-full', style: 'cursor:pointer;margin-top:8px' })
+    importLabel.textContent = 'Import a JSON file…'
+    const importInput = el('input', { type: 'file', accept: 'application/json', style: 'display:none' })
+    importLabel.appendChild(importInput)
+    content.appendChild(importLabel)
+    importInput.addEventListener('change', async e => {
       const file = e.target.files[0]
       if (!file) return
       try {
@@ -1158,9 +1058,7 @@ export function renderPlanBuilderView({ activePlan, activePlanId, onPlanActivate
           reader.onerror = () => reject(reader.error)
           reader.readAsText(file)
         })
-        data = importPlanJson(JSON.parse(text))
-        save()
-        render()
+        openImportedPlan(JSON.parse(text))
       } catch (err) {
         showNotice('Could not read that file as JSON: ' + err.message)
       }
@@ -1168,22 +1066,27 @@ export function renderPlanBuilderView({ activePlan, activePlanId, onPlanActivate
     })
   }
 
-  function sectionLink(name, count, onClick) {
-    const link = el('div', { class: 'pb-section-link', onclick: onClick })
-    const main = el('div', { class: 'pb-section-link-main' })
-    main.appendChild(el('span', { class: 'pb-section-link-name', html: escapeHtml(name) }))
-    if (count !== undefined) main.appendChild(el('span', { class: 'pb-section-link-count', html: escapeHtml(count) }))
-    link.appendChild(main)
-    link.appendChild(el('span', { class: 'pb-section-link-arrow', html: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l5 4-5 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' }))
-    return link
-  }
+  // ── Options: one specific plan ──────────────────────────────────────
 
-  function renderHome() {
+  function renderOptions() {
     root.innerHTML = `
       <div class="topbar"><span class="topbar-title">Plan builder</span></div>
-      <div class="content plan-builder-content" id="pb-home-content"></div>
+      <div class="content plan-builder-content" id="pb-options-content"></div>
     `
-    const content = root.querySelector('#pb-home-content')
+    const content = root.querySelector('#pb-options-content')
+    const isActive = !!data.plan.id && data.plan.id === activePlanId
+
+    const back = el('button', { class: 'btn btn-ghost', type: 'button', style: 'margin-bottom:14px' })
+    back.textContent = '← All plans'
+    back.addEventListener('click', () => { view = 'list'; render() })
+    content.appendChild(back)
+
+    const titleRow = el('div', { style: 'display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap' })
+    const titleEl = el('span', { style: 'font-size:22px;font-weight:600;color:var(--text)' })
+    titleEl.textContent = data.plan.title || 'New plan'
+    titleRow.appendChild(titleEl)
+    if (isActive) titleRow.appendChild(el('span', { class: 'pb-active-badge', html: 'Active' }))
+    content.appendChild(titleRow)
 
     const card = el('div', { class: 'card', style: 'display:flex;flex-direction:column;gap:8px' })
     card.appendChild(sectionLink('Plan details', data.plan.title || 'Untitled', () => openPlanDetailsOverlay(data, save, render)))
@@ -1191,28 +1094,113 @@ export function renderPlanBuilderView({ activePlan, activePlanId, onPlanActivate
     card.appendChild(sectionLink('Recommendations', String(data.recommendations.length), () => openRecommendationsOverlay(data, save, render)))
     card.appendChild(sectionLink('Supplements', String(data.supplements.length), () => openSupplementsOverlay(data, save, render)))
     card.appendChild(sectionLink('Fasting', data.fasting.enabled ? 'On' : 'Off', () => openFastingOverlay(data, save, render)))
-    card.appendChild(sectionLink('Saved plans', undefined, () => openSavedPlansOverlay({
-      activePlanId,
-      onPlanActivated,
-      onEditPlan: plan => { data = importPlanJson(plan); save(); render() },
-    }, render)))
     content.appendChild(card)
 
-    const exportBtn = el('button', { class: 'btn btn-primary btn-full', type: 'button', style: 'margin-top:16px' })
-    exportBtn.textContent = 'Preview & export'
-    exportBtn.addEventListener('click', () => openPreviewOverlay(data))
-    content.appendChild(exportBtn)
+    const exported = buildExport(data)
+    const { valid, errors } = validatePlan(exported)
+    const validation = el('div', { class: 'pb-validation ' + (valid ? 'ok' : 'bad'), style: 'margin-top:16px' })
+    validation.textContent = valid
+      ? '✓ Valid plan — the tracker will accept this as-is.'
+      : `${errors.length} issue${errors.length > 1 ? 's' : ''}: ` + errors.map(e => e.msg).join('; ')
+    content.appendChild(validation)
 
-    const resetBtn = el('button', { class: 'btn btn-ghost btn-full', type: 'button', style: 'margin-top:8px' })
-    resetBtn.textContent = 'Start over'
-    resetBtn.addEventListener('click', () => {
-      showConfirm('Discard this draft and start over?', 'Discard', () => {
-        data = null
-        clearDraft()
-        render()
-      })
+    const saveBtn = el('button', { class: 'btn btn-primary btn-full', type: 'button', style: 'margin-top:16px' })
+    saveBtn.textContent = 'Save'
+    saveBtn.disabled = !valid
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true
+      saveBtn.textContent = 'Saving…'
+      try {
+        await cloudDb.savePlan(exported)
+        hasSavedAtLeastOnce = true
+        // Editing the plan that's already live pushes the update straight
+        // to the app (no separate Activate needed — it was already
+        // active); saving a plan that isn't active just persists it.
+        if (isActive) onActivePlanUpdated(exported)
+        saveBtn.textContent = 'Saved ✓'
+        setTimeout(() => { saveBtn.textContent = 'Save'; saveBtn.disabled = !valid }, 1200)
+      } catch (err) {
+        showNotice('Could not save: ' + err.message)
+        saveBtn.textContent = 'Save'
+        saveBtn.disabled = false
+      }
     })
-    content.appendChild(resetBtn)
+    content.appendChild(saveBtn)
+    if (isActive) {
+      content.appendChild(hint('This is the active plan — saving pushes the update immediately.'))
+    } else {
+      content.appendChild(hint('Saving doesn’t activate it — use Activate below when it’s ready to train from.'))
+    }
+
+    if (!isActive) {
+      const activateBtn = el('button', { class: 'btn btn-ghost btn-full', type: 'button', style: 'margin-top:8px' })
+      activateBtn.textContent = 'Activate'
+      activateBtn.disabled = !hasSavedAtLeastOnce
+      activateBtn.title = hasSavedAtLeastOnce ? '' : 'Save this plan first'
+      activateBtn.addEventListener('click', async () => {
+        activateBtn.disabled = true
+        activateBtn.textContent = 'Activating…'
+        try {
+          // Activates whatever is actually saved for this id, not any
+          // unsaved in-progress edits — Save and Activate stay two
+          // genuinely separate steps.
+          const saved = await cloudDb.loadPlan(data.plan.id)
+          if (!saved) throw new Error('That saved plan is gone — try refreshing the list.')
+          await cloudDb.setMeta('activePlanId', data.plan.id)
+          onPlanActivated(saved)
+        } catch (err) {
+          showNotice('Could not activate: ' + err.message)
+          activateBtn.disabled = false
+          activateBtn.textContent = 'Activate'
+        }
+      })
+      content.appendChild(activateBtn)
+    }
+
+    if (hasSavedAtLeastOnce && !isActive) {
+      const deleteBtn = el('button', { class: 'btn btn-ghost btn-full', type: 'button', style: 'margin-top:8px' })
+      deleteBtn.textContent = 'Delete'
+      deleteBtn.addEventListener('click', () => {
+        showConfirm(`Delete "${data.plan.title || data.plan.id}"? This can’t be undone.`, 'Delete', async () => {
+          try {
+            await cloudDb.deletePlan(data.plan.id)
+            clearDraft()
+            data = null
+            view = 'list'
+            render()
+          } catch (err) {
+            showNotice('Could not delete: ' + err.message)
+          }
+        })
+      })
+      content.appendChild(deleteBtn)
+    }
+
+    const exportRow = el('div', { style: 'display:flex;gap:8px;margin-top:16px' })
+    const copyBtn = el('button', { class: 'btn btn-ghost', type: 'button', style: 'flex:1' })
+    copyBtn.textContent = 'Copy JSON'
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(JSON.stringify(exported, null, 2))
+      copyBtn.textContent = 'Copied ✓'
+      setTimeout(() => { copyBtn.textContent = 'Copy JSON' }, 1500)
+    })
+    const downloadBtn = el('button', { class: 'btn btn-ghost', type: 'button', style: 'flex:1' })
+    downloadBtn.textContent = 'Download JSON'
+    downloadBtn.addEventListener('click', () => {
+      const text = JSON.stringify(exported, null, 2)
+      const blob = new Blob([text], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = (exported.plan.id || 'plan') + '.json'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    })
+    exportRow.appendChild(copyBtn)
+    exportRow.appendChild(downloadBtn)
+    content.appendChild(exportRow)
   }
 
   render()

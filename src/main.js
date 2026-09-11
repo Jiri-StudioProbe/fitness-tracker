@@ -116,13 +116,22 @@ function render() {
 
   if (state.tab === 'plan') {
     main.appendChild(renderPlanBuilderView({
-      activePlan: state.plan,
       activePlanId: state.activePlanId,
       onPlanActivated: plan => {
         state.plan = plan
         state.activePlanId = plan.plan.id
         state.tab = 'week'
         render()
+      },
+      // Editing the already-active plan and hitting Save pushes it live
+      // without any navigation — just refresh the in-memory copy so
+      // Week/Progress pick it up next time they're viewed, no reload
+      // needed. Deliberately no render() here: the Plan Builder is still
+      // open and mid-edit; forcing a full re-render would yank it out
+      // from under the user.
+      onActivePlanUpdated: plan => {
+        state.plan = plan
+        state.activePlanId = plan.plan.id
       },
     }))
   } else if (!state.plan) {
