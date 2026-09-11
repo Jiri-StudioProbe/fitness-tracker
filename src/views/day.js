@@ -477,13 +477,27 @@ function findPreviousSet(dayRecords, date, exName, setIndex) {
   return null
 }
 
-function formatPrevSet(ex, set) {
+function formatPrevSetValue(ex, set) {
   if (!set) return ''
-  if (ex.track?.includes('done')) return set.done ? 'Last time: done ✓' : ''
+  if (ex.track?.includes('done')) return set.done ? 'Done ✓' : ''
   const parts = []
   if (ex.track?.includes('weight') && (set.weight ?? '') !== '') parts.push(`${set.weight}kg`)
   if (ex.track?.includes('reps') && (set.reps ?? '') !== '') parts.push(`${set.reps} reps`)
-  return parts.length ? `Last time: ${parts.join(' × ')}` : ''
+  return parts.length ? parts.join(' / ') : ''
+}
+
+// Two-line hint: a small "Previously" label, then the value itself sized
+// to match the actual entry field it sits above — big and glanceable,
+// the same as the number you're about to type over it.
+function renderPrevHint(ex, set, cls) {
+  const value = formatPrevSetValue(ex, set)
+  if (!value) return ''
+  return `
+    <div class="${cls}">
+      <div class="prev-hint-label">Previously</div>
+      <div class="prev-hint-value">${escHtml(value)}</div>
+    </div>
+  `
 }
 
 function hasAnyLoggedData(blocks, state) {
@@ -523,7 +537,7 @@ function renderFlowScreen(state, dayRecords, date) {
   const tracksReps = ex.track?.includes('reps')
   const setCount = isCircuit ? (block.rounds ?? 1) : (ex.defaultSets ?? 1)
   const progressPct = Math.round(((stepIndex + 1) / steps.length) * 100)
-  const prevHint = formatPrevSet(ex, findPreviousSet(dayRecords, date, ex.name, setIndex))
+  const prevHint = renderPrevHint(ex, findPreviousSet(dayRecords, date, ex.name, setIndex), 'flow-prev-hint')
 
   return `
     <div class="flow-screen">
@@ -534,7 +548,7 @@ function renderFlowScreen(state, dayRecords, date) {
         ${kind === 'value' && setCount > 1 ? `<div class="flow-set-label">${isCircuit ? 'Round' : 'Set'} ${setIndex + 1} of ${setCount}</div>` : ''}
         ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
         ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
-        ${prevHint ? `<div class="flow-prev-hint">${escHtml(prevHint)}</div>` : ''}
+        ${prevHint}
 
         ${kind === 'done' ? `
           <button class="flow-done-btn ${current.done ? 'checked' : ''}" id="flow-done-toggle">
@@ -570,7 +584,7 @@ function renderExerciseRow(ex, state, dayRecords, date) {
   const tracksWeight = ex.track?.includes('weight')
   const tracksReps = ex.track?.includes('reps')
   const tracksDone = ex.track?.includes('done')
-  const doneHint = tracksDone ? formatPrevSet(ex, findPreviousSet(dayRecords, date, ex.name, 0)) : ''
+  const doneHint = tracksDone ? renderPrevHint(ex, findPreviousSet(dayRecords, date, ex.name, 0), 'set-prev-hint') : ''
 
   return `
     <div class="exercise-row">
@@ -578,7 +592,7 @@ function renderExerciseRow(ex, state, dayRecords, date) {
       ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
       ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
       ${tracksDone ? `
-        ${doneHint ? `<div class="set-prev-hint">${escHtml(doneHint)}</div>` : ''}
+        ${doneHint}
         <label class="done-row">
           <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" />
           <span class="done-label">Done</span>
@@ -586,10 +600,10 @@ function renderExerciseRow(ex, state, dayRecords, date) {
       ` : `
         <div class="sets-row">
           ${sets.map((set, si) => {
-            const prevHint = formatPrevSet(ex, findPreviousSet(dayRecords, date, ex.name, si))
+            const prevHint = renderPrevHint(ex, findPreviousSet(dayRecords, date, ex.name, si), 'set-prev-hint')
             return `
             <div class="set-with-hint">
-              ${prevHint ? `<div class="set-prev-hint">${escHtml(prevHint)}</div>` : ''}
+              ${prevHint}
               <div class="set-input-group">
                 ${tracksWeight ? `
                   <input type="number" class="set-input set-weight" inputmode="decimal" placeholder="—" value="${escHtml(set.weight ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />

@@ -586,9 +586,21 @@ html, body {
 }
 
 .set-prev-hint {
-  font-size: 13px;
   color: var(--muted);
   padding-left: 2px;
+  line-height: 1.15;
+}
+
+.set-prev-hint .prev-hint-label {
+  font-size: 14px;
+}
+
+/* Matches .set-input's own size — the previous number reads at a glance,
+   same scale as the field you're about to fill in above it. */
+.set-prev-hint .prev-hint-value {
+  font-size: 34px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
 }
 
 .set-input-group {
@@ -718,8 +730,19 @@ html, body {
 }
 
 .flow-prev-hint {
-  font-size: 15px;
   color: var(--muted);
+  line-height: 1.15;
+}
+
+.flow-prev-hint .prev-hint-label {
+  font-size: 16px;
+}
+
+/* Matches .flow-input's own size — see .set-prev-hint .prev-hint-value. */
+.flow-prev-hint .prev-hint-value {
+  font-size: 44px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
 }
 
 .flow-input-group {
