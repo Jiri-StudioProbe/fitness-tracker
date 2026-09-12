@@ -2,6 +2,13 @@ import { formatDayHeader, today } from '../dates.js'
 import { recommendDay, FLAG } from '../engine.js'
 import { getSessionById, getSupplementsForDay } from '../plan.js'
 import { showConfirm } from '../dialogs.js'
+import { mountWheelPicker } from './wheelPicker.js'
+
+// Practical bounds for the guided flow's drag-to-scrub weight/reps wheels
+// — a wheel needs a fixed range to spin through, unlike a free-text
+// number input. Generous enough for any real set; not user-configurable.
+const WHEEL_WEIGHT_MIN = 0, WHEEL_WEIGHT_MAX = 150
+const WHEEL_REPS_MIN = 0, WHEEL_REPS_MAX = 40
 
 const FLAG_LABELS = {
   [FLAG.CONSECUTIVE_HARD]: 'Two hard sessions in a row',
@@ -237,14 +244,83 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       render()
     })
 
-    sheet.querySelector('#flow-weight')?.addEventListener('input', e => {
+    // Guided flow: drag-to-scrub weight/reps wheels, mounted fresh on
+    // every render (same model as the innerHTML they live in — there's
+    // no persistent-component update path here). A drag survives a
+    // render because nothing calls render() again until the value
+    // actually commits on release; see wheelPicker.js.
+    if (state.flow) {
       const step = state.flow.steps[state.flow.stepIndex]
-      setDetailValue(state, step.ex.name, step.setIndex, 'weight', e.target.value)
-    })
-    sheet.querySelector('#flow-reps')?.addEventListener('input', e => {
-      const step = state.flow.steps[state.flow.stepIndex]
-      setDetailValue(state, step.ex.name, step.setIndex, 'reps', e.target.value)
-    })
+      const existing = state.detail?.exercises?.[step.ex.name]?.[step.setIndex]
+      const prevSet = findPreviousSet(dayRecords, date, step.ex.name, step.setIndex)
+
+      function mountFlowWheel(id, field, min, max) {
+        const mask = sheet.querySelector(id)
+        if (!mask) return
+        const hasExisting = existing?.[field] !== undefined && existing[field] !== ''
+        const fallback = prevSet?.[field] !== undefined && prevSet[field] !== '' ? Number(prevSet[field]) : 0
+        const startValue = hasExisting ? Number(existing[field]) : fallback
+        // Seed state with the starting value immediately (previous
+        // session's number, or 0) so what the wheel shows and what gets
+        // saved never disagree — dragging then adjusts it from there.
+        if (!hasExisting) setDetailValue(state, step.ex.name, step.setIndex, field, String(startValue))
+        mountWheelPicker(mask, {
+          min, max, value: startValue,
+          onChange: v => setDetailValue(state, step.ex.name, step.setIndex, field, String(v)),
+        })
+      }
+      mountFlowWheel('#flow-weight-wheel', 'weight', WHEEL_WEIGHT_MIN, WHEEL_WEIGHT_MAX)
+      mountFlowWheel('#flow-reps-wheel', 'reps', WHEEL_REPS_MIN, WHEEL_REPS_MAX)
+
+      // Swipe left/right anywhere in the flow header (but not on a wheel,
+      // which owns its own vertical drag) to move between sets/exercises
+      // — the same action as the Back/Next buttons below, just gestural.
+      const flowTop = sheet.querySelector('.flow-top')
+      const flowScreenEl = sheet.querySelector('.flow-screen')
+      if (flowTop && flowScreenEl) {
+        let swiping = false
+        let swipeStartX = 0
+        let swipePointerId = null
+        flowTop.addEventListener('pointerdown', e => {
+          if (e.target.closest('.flow-wheel-mask')) return
+          swiping = true
+          swipeStartX = e.clientX
+          swipePointerId = e.pointerId
+          // Best-effort — a failure here must not stop the swipe from
+          // being tracked below.
+          try { flowTop.setPointerCapture?.(e.pointerId) } catch { /* ignore */ }
+        })
+        flowTop.addEventListener('pointermove', e => {
+          if (!swiping) return
+          flowScreenEl.style.transition = ''
+          flowScreenEl.style.transform = `translateX(${e.clientX - swipeStartX}px)`
+        })
+        function endSwipe(e) {
+          if (!swiping) return
+          swiping = false
+          const dx = e.clientX - swipeStartX
+          const threshold = 70
+          // Mirrors the Back button's own guard (it doesn't render on the
+          // first step either) — swiping right there has nothing to do.
+          if (dx <= -threshold) {
+            advanceFlow(1)
+            render()
+          } else if (dx >= threshold && state.flow.stepIndex > 0) {
+            advanceFlow(-1)
+            render()
+          } else {
+            flowScreenEl.style.transition = 'transform .22s cubic-bezier(.2,.8,.2,1)'
+            flowScreenEl.style.transform = 'translateX(0px)'
+          }
+          // Release is best-effort cleanup — do it last, after the real
+          // navigation/snap-back action above, never gating it.
+          try { if (swipePointerId !== null) flowTop.releasePointerCapture?.(swipePointerId) } catch { /* ignore */ }
+        }
+        flowTop.addEventListener('pointerup', endSwipe)
+        flowTop.addEventListener('pointercancel', endSwipe)
+      }
+    }
+
     sheet.querySelector('#flow-done-toggle')?.addEventListener('click', () => {
       const step = state.flow.steps[state.flow.stepIndex]
       const current = state.detail?.exercises?.[step.ex.name]?.[step.setIndex]?.done
@@ -555,15 +631,18 @@ function renderFlowScreen(state, dayRecords, date) {
             ${current.done ? '✓ Done' : 'Mark done'}
           </button>
         ` : `
-          <div class="set-input-group flow-input-group">
+          <div class="flow-wheel-group">
             ${tracksWeight ? `
-              <input type="number" class="set-input flow-input" id="flow-weight" inputmode="decimal" placeholder="—" value="${escHtml(current.weight ?? '')}" />
-              <span class="set-input-label">kg</span>
-              <span class="set-input-label" style="margin:0 2px">×</span>
+              <div class="flow-wheel-col">
+                <div id="flow-weight-wheel"></div>
+                <div class="flow-wheel-unit">kg</div>
+              </div>
             ` : ''}
             ${tracksReps ? `
-              <input type="number" class="set-input flow-input" id="flow-reps" inputmode="numeric" placeholder="—" value="${escHtml(current.reps ?? '')}" />
-              <span class="set-input-label">reps</span>
+              <div class="flow-wheel-col">
+                <div id="flow-reps-wheel"></div>
+                <div class="flow-wheel-unit">reps</div>
+              </div>
             ` : ''}
           </div>
         `}
