@@ -806,13 +806,15 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px 0 12px;
+  padding: 10px 0 14px;
 }
 
+/* 3 rows × 52px row height (see wheelPicker.js's ROW_H) — anything
+   shorter clips a few px off the top/bottom peek rows. */
 .flow-wheel-mask {
   position: relative;
   width: 100%;
-  height: 150px;
+  height: 156px;
   overflow: hidden;
   touch-action: none;
   cursor: grab;

@@ -278,6 +278,48 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       const flowTop = sheet.querySelector('.flow-top')
       const flowScreenEl = sheet.querySelector('.flow-screen')
       if (flowTop && flowScreenEl) {
+        const SLIDE_MS = 220
+        const SLIDE_EASE = 'cubic-bezier(.2,.8,.2,1)'
+
+        // render() replaces the whole sheet, so the outgoing .flow-screen
+        // is gone the instant advanceFlow's step changes — without a
+        // snapshot, a swipe or a tap would cut straight to the new step
+        // with no motion at all. Cloning it lets the exit keep sliding
+        // (in whatever direction it was already heading) while the real
+        // re-render happens underneath, and the fresh .flow-screen starts
+        // just off the opposite edge and eases in — the pair reads as one
+        // continuous slide rather than an exit and an unrelated entrance.
+        function slideToNewStep(dir) {
+          const rect = flowScreenEl.getBoundingClientRect()
+          const clone = flowScreenEl.cloneNode(true)
+          clone.style.position = 'fixed'
+          clone.style.left = rect.left + 'px'
+          clone.style.top = rect.top + 'px'
+          clone.style.width = rect.width + 'px'
+          clone.style.margin = '0'
+          clone.style.pointerEvents = 'none'
+          clone.style.zIndex = '50'
+          clone.style.transition = `transform ${SLIDE_MS}ms ${SLIDE_EASE}, opacity ${SLIDE_MS}ms ${SLIDE_EASE}`
+          document.body.appendChild(clone)
+          requestAnimationFrame(() => {
+            clone.style.transform = `translateX(${dir > 0 ? -rect.width : rect.width}px)`
+            clone.style.opacity = '0'
+          })
+          setTimeout(() => clone.remove(), SLIDE_MS + 40)
+
+          advanceFlow(dir)
+          render()
+
+          const freshScreen = sheet.querySelector('.flow-screen')
+          if (freshScreen) {
+            freshScreen.style.transition = 'none'
+            freshScreen.style.transform = `translateX(${dir > 0 ? rect.width : -rect.width}px)`
+            freshScreen.getBoundingClientRect() // force layout before animating away from it
+            freshScreen.style.transition = `transform ${SLIDE_MS}ms ${SLIDE_EASE}`
+            freshScreen.style.transform = 'translateX(0px)'
+          }
+        }
+
         let swiping = false
         let swipeStartX = 0
         let swipePointerId = null
@@ -299,17 +341,18 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
           if (!swiping) return
           swiping = false
           const dx = e.clientX - swipeStartX
-          const threshold = 70
+          // Relative to the header's own width, same ratio as the drag
+          // sensitivity tuned in the standalone prototype — a fixed px
+          // threshold doesn't scale the same way across phone widths.
+          const threshold = flowTop.clientWidth * 0.18
           // Mirrors the Back button's own guard (it doesn't render on the
           // first step either) — swiping right there has nothing to do.
           if (dx <= -threshold) {
-            advanceFlow(1)
-            render()
+            slideToNewStep(1)
           } else if (dx >= threshold && state.flow.stepIndex > 0) {
-            advanceFlow(-1)
-            render()
+            slideToNewStep(-1)
           } else {
-            flowScreenEl.style.transition = 'transform .22s cubic-bezier(.2,.8,.2,1)'
+            flowScreenEl.style.transition = `transform ${SLIDE_MS}ms ${SLIDE_EASE}`
             flowScreenEl.style.transform = 'translateX(0px)'
           }
           // Release is best-effort cleanup — do it last, after the real
@@ -318,6 +361,11 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         }
         flowTop.addEventListener('pointerup', endSwipe)
         flowTop.addEventListener('pointercancel', endSwipe)
+
+        // Buttons drive the exact same slide, so navigating by tap reads
+        // as the same motion as navigating by swipe.
+        sheet.querySelector('#flow-next')?.addEventListener('click', () => slideToNewStep(1))
+        sheet.querySelector('#flow-back')?.addEventListener('click', () => slideToNewStep(-1))
       }
     }
 
@@ -325,14 +373,6 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       const step = state.flow.steps[state.flow.stepIndex]
       const current = state.detail?.exercises?.[step.ex.name]?.[step.setIndex]?.done
       setDetailValue(state, step.ex.name, step.setIndex, 'done', !current)
-      render()
-    })
-    sheet.querySelector('#flow-next')?.addEventListener('click', () => {
-      advanceFlow(1)
-      render()
-    })
-    sheet.querySelector('#flow-back')?.addEventListener('click', () => {
-      advanceFlow(-1)
       render()
     })
 
