@@ -244,137 +244,155 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       render()
     })
 
-    // Guided flow: drag-to-scrub weight/reps wheels, mounted fresh on
-    // every render (same model as the innerHTML they live in — there's
-    // no persistent-component update path here). A drag survives a
-    // render because nothing calls render() again until the value
-    // actually commits on release; see wheelPicker.js.
+    // Guided flow: every step is a peeking panel on a persistent
+    // horizontal track (matching the tuned prototype's architecture —
+    // see renderFlowScreen). All wheels for all steps mount up front,
+    // same as the prototype, since a lazily-swapped single panel is what
+    // made the old clone-based slide feel different from it. Navigating
+    // between steps only ever translates .flow-track and updates the
+    // shared chrome (progress bar, Back/Next) — it never calls the outer
+    // render(), so the deck's own DOM (and any wheel mid-drag) survives
+    // untouched. render() only runs again on actually leaving the flow.
     if (state.flow) {
-      const step = state.flow.steps[state.flow.stepIndex]
-      const existing = state.detail?.exercises?.[step.ex.name]?.[step.setIndex]
-      const prevSet = findPreviousSet(dayRecords, date, step.ex.name, step.setIndex)
+      const { steps } = state.flow
 
-      function mountFlowWheel(id, field, min, max) {
-        const mask = sheet.querySelector(id)
-        if (!mask) return
-        const hasExisting = existing?.[field] !== undefined && existing[field] !== ''
-        const fallback = prevSet?.[field] !== undefined && prevSet[field] !== '' ? Number(prevSet[field]) : 0
-        const startValue = hasExisting ? Number(existing[field]) : fallback
-        // Seed state with the starting value immediately (previous
-        // session's number, or 0) so what the wheel shows and what gets
-        // saved never disagree — dragging then adjusts it from there.
-        if (!hasExisting) setDetailValue(state, step.ex.name, step.setIndex, field, String(startValue))
-        mountWheelPicker(mask, {
-          min, max, value: startValue,
-          onChange: v => setDetailValue(state, step.ex.name, step.setIndex, field, String(v)),
-        })
-      }
-      mountFlowWheel('#flow-weight-wheel', 'weight', WHEEL_WEIGHT_MIN, WHEEL_WEIGHT_MAX)
-      mountFlowWheel('#flow-reps-wheel', 'reps', WHEEL_REPS_MIN, WHEEL_REPS_MAX)
+      steps.forEach((step, i) => {
+        const existing = state.detail?.exercises?.[step.ex.name]?.[step.setIndex]
+        const prevSet = findPreviousSet(dayRecords, date, step.ex.name, step.setIndex)
 
-      // Swipe left/right anywhere in the flow header (but not on a wheel,
-      // which owns its own vertical drag) to move between sets/exercises
-      // — the same action as the Back/Next buttons below, just gestural.
-      const flowTop = sheet.querySelector('.flow-top')
-      const flowScreenEl = sheet.querySelector('.flow-screen')
-      if (flowTop && flowScreenEl) {
-        const SLIDE_MS = 220
-        const SLIDE_EASE = 'cubic-bezier(.2,.8,.2,1)'
-
-        // render() replaces the whole sheet, so the outgoing .flow-screen
-        // is gone the instant advanceFlow's step changes — without a
-        // snapshot, a swipe or a tap would cut straight to the new step
-        // with no motion at all. Cloning it lets the exit keep sliding
-        // (in whatever direction it was already heading) while the real
-        // re-render happens underneath, and the fresh .flow-screen starts
-        // just off the opposite edge and eases in — the pair reads as one
-        // continuous slide rather than an exit and an unrelated entrance.
-        function slideToNewStep(dir) {
-          const rect = flowScreenEl.getBoundingClientRect()
-          const clone = flowScreenEl.cloneNode(true)
-          clone.style.position = 'fixed'
-          clone.style.left = rect.left + 'px'
-          clone.style.top = rect.top + 'px'
-          clone.style.width = rect.width + 'px'
-          clone.style.margin = '0'
-          clone.style.pointerEvents = 'none'
-          clone.style.zIndex = '50'
-          clone.style.transition = `transform ${SLIDE_MS}ms ${SLIDE_EASE}, opacity ${SLIDE_MS}ms ${SLIDE_EASE}`
-          document.body.appendChild(clone)
-          requestAnimationFrame(() => {
-            clone.style.transform = `translateX(${dir > 0 ? -rect.width : rect.width}px)`
-            clone.style.opacity = '0'
+        function mountFlowWheel(id, field, min, max) {
+          const mask = sheet.querySelector(id)
+          if (!mask) return
+          const hasExisting = existing?.[field] !== undefined && existing[field] !== ''
+          const fallback = prevSet?.[field] !== undefined && prevSet[field] !== '' ? Number(prevSet[field]) : 0
+          const startValue = hasExisting ? Number(existing[field]) : fallback
+          // Seed state with the starting value immediately (previous
+          // session's number, or 0) so what the wheel shows and what gets
+          // saved never disagree — dragging then adjusts it from there.
+          if (!hasExisting) setDetailValue(state, step.ex.name, step.setIndex, field, String(startValue))
+          mountWheelPicker(mask, {
+            min, max, value: startValue,
+            onChange: v => setDetailValue(state, step.ex.name, step.setIndex, field, String(v)),
           })
-          setTimeout(() => clone.remove(), SLIDE_MS + 40)
+        }
+        mountFlowWheel(`#flow-weight-wheel-${i}`, 'weight', WHEEL_WEIGHT_MIN, WHEEL_WEIGHT_MAX)
+        mountFlowWheel(`#flow-reps-wheel-${i}`, 'reps', WHEEL_REPS_MIN, WHEEL_REPS_MAX)
+      })
 
-          advanceFlow(dir)
-          render()
+      const deck = sheet.querySelector('#flow-deck')
+      const track = sheet.querySelector('#flow-track')
+      const progressFill = sheet.querySelector('#flow-progress-fill')
+      const backBtn = sheet.querySelector('#flow-back')
+      const nextBtn = sheet.querySelector('#flow-next')
 
-          const freshScreen = sheet.querySelector('.flow-screen')
-          if (freshScreen) {
-            freshScreen.style.transition = 'none'
-            freshScreen.style.transform = `translateX(${dir > 0 ? rect.width : -rect.width}px)`
-            freshScreen.getBoundingClientRect() // force layout before animating away from it
-            freshScreen.style.transition = `transform ${SLIDE_MS}ms ${SLIDE_EASE}`
-            freshScreen.style.transform = 'translateX(0px)'
-          }
+      if (deck && track) {
+        // Same numbers as the tuned prototype's deck: a fixed 64px margin
+        // (32px peeking on each side) and 20px gap between panels, so
+        // neighbours are visibly sliced at rest, not just during a drag.
+        const GAP = 20
+        const SIDE_MARGIN = 64
+        const SLIDE_MS = 380
+        const SLIDE_EASE = 'cubic-bezier(.2,.8,.2,1)'
+        let panelW = Math.max(0, deck.clientWidth - SIDE_MARGIN)
+
+        track.querySelectorAll('.flow-panel').forEach(panel => {
+          panel.style.width = panelW + 'px'
+          panel.style.marginRight = GAP + 'px'
+        })
+
+        const centerOffset = () => (deck.clientWidth - panelW) / 2
+        const clampIndex = i => Math.min(steps.length - 1, Math.max(0, i))
+
+        function updateChrome(index) {
+          const pct = Math.round(((index + 1) / steps.length) * 100)
+          if (progressFill) progressFill.style.width = pct + '%'
+          if (backBtn) backBtn.style.visibility = index === 0 ? 'hidden' : ''
+          if (nextBtn) nextBtn.textContent = computeNextLabel(steps, index)
         }
 
-        let swiping = false
-        let swipeStartX = 0
-        let swipePointerId = null
-        flowTop.addEventListener('pointerdown', e => {
-          if (e.target.closest('.flow-wheel-mask')) return
-          swiping = true
-          swipeStartX = e.clientX
-          swipePointerId = e.pointerId
-          // Best-effort — a failure here must not stop the swipe from
+        function goTo(index, animate = true) {
+          index = clampIndex(index)
+          state.flow.stepIndex = index
+          track.style.transition = animate ? `transform ${SLIDE_MS}ms ${SLIDE_EASE}` : 'none'
+          track.style.transform = `translateX(${centerOffset() - index * (panelW + GAP)}px)`
+          updateChrome(index)
+        }
+
+        // Land on the step the flow actually opened on — no transition,
+        // this is the initial position, not a navigation.
+        goTo(state.flow.stepIndex, false)
+
+        let dragging = false
+        let baseX = 0
+        let dragStartX = 0
+        let dragPointerId = null
+
+        function currentTranslateX() {
+          const m = /translateX\(([-\d.]+)px\)/.exec(track.style.transform)
+          return m ? parseFloat(m[1]) : centerOffset() - state.flow.stepIndex * (panelW + GAP)
+        }
+
+        deck.addEventListener('pointerdown', e => {
+          if (e.target.closest('.flow-wheel-mask')) return // a wheel owns its own vertical drag
+          dragging = true
+          baseX = currentTranslateX()
+          dragStartX = e.clientX
+          dragPointerId = e.pointerId
+          track.style.transition = 'none'
+          // Best-effort — a failure here must not stop the drag from
           // being tracked below.
-          try { flowTop.setPointerCapture?.(e.pointerId) } catch { /* ignore */ }
+          try { deck.setPointerCapture?.(e.pointerId) } catch { /* ignore */ }
         })
-        flowTop.addEventListener('pointermove', e => {
-          if (!swiping) return
-          flowScreenEl.style.transition = ''
-          flowScreenEl.style.transform = `translateX(${e.clientX - swipeStartX}px)`
+        deck.addEventListener('pointermove', e => {
+          if (!dragging) return
+          track.style.transform = `translateX(${baseX + (e.clientX - dragStartX)}px)`
         })
-        function endSwipe(e) {
-          if (!swiping) return
-          swiping = false
-          const dx = e.clientX - swipeStartX
-          // Relative to the header's own width, same ratio as the drag
-          // sensitivity tuned in the standalone prototype — a fixed px
-          // threshold doesn't scale the same way across phone widths.
-          const threshold = flowTop.clientWidth * 0.18
-          // Mirrors the Back button's own guard (it doesn't render on the
-          // first step either) — swiping right there has nothing to do.
-          if (dx <= -threshold) {
-            slideToNewStep(1)
-          } else if (dx >= threshold && state.flow.stepIndex > 0) {
-            slideToNewStep(-1)
-          } else {
-            flowScreenEl.style.transition = `transform ${SLIDE_MS}ms ${SLIDE_EASE}`
-            flowScreenEl.style.transform = 'translateX(0px)'
-          }
+        function endDrag(e) {
+          if (!dragging) return
+          dragging = false
+          const dx = e.clientX - dragStartX
+          // Relative to the panel's own width, same ratio tuned in the
+          // standalone prototype — a fixed px threshold doesn't scale
+          // the same way across phone widths.
+          const threshold = panelW * 0.18
+          if (dx <= -threshold) goTo(state.flow.stepIndex + 1)
+          else if (dx >= threshold) goTo(state.flow.stepIndex - 1)
+          else goTo(state.flow.stepIndex) // snap back to where it already was
           // Release is best-effort cleanup — do it last, after the real
           // navigation/snap-back action above, never gating it.
-          try { if (swipePointerId !== null) flowTop.releasePointerCapture?.(swipePointerId) } catch { /* ignore */ }
+          try { if (dragPointerId !== null) deck.releasePointerCapture?.(dragPointerId) } catch { /* ignore */ }
         }
-        flowTop.addEventListener('pointerup', endSwipe)
-        flowTop.addEventListener('pointercancel', endSwipe)
+        deck.addEventListener('pointerup', endDrag)
+        deck.addEventListener('pointercancel', endDrag)
 
-        // Buttons drive the exact same slide, so navigating by tap reads
-        // as the same motion as navigating by swipe.
-        sheet.querySelector('#flow-next')?.addEventListener('click', () => slideToNewStep(1))
-        sheet.querySelector('#flow-back')?.addEventListener('click', () => slideToNewStep(-1))
+        // Buttons drive the exact same goTo, so navigating by tap reads
+        // as the same motion as navigating by swipe — except stepping
+        // past the last panel actually exits the flow, which is an
+        // outer-render concern the deck itself has no notion of.
+        backBtn?.addEventListener('click', () => goTo(state.flow.stepIndex - 1))
+        nextBtn?.addEventListener('click', () => {
+          if (state.flow.stepIndex === steps.length - 1) {
+            advanceFlow(1) // out of bounds — exits the flow
+            render()
+          } else {
+            goTo(state.flow.stepIndex + 1)
+          }
+        })
       }
-    }
 
-    sheet.querySelector('#flow-done-toggle')?.addEventListener('click', () => {
-      const step = state.flow.steps[state.flow.stepIndex]
-      const current = state.detail?.exercises?.[step.ex.name]?.[step.setIndex]?.done
-      setDetailValue(state, step.ex.name, step.setIndex, 'done', !current)
-      render()
-    })
+      // Delegated: each panel's done-toggle carries its own step index,
+      // since every panel exists at once. Flips the button in place
+      // rather than going through render(), same reasoning as above.
+      track?.addEventListener('click', e => {
+        const btn = e.target.closest('[data-flow-done]')
+        if (!btn) return
+        const step = steps[parseInt(btn.dataset.flowDone, 10)]
+        const wasDone = !!state.detail?.exercises?.[step.ex.name]?.[step.setIndex]?.done
+        setDetailValue(state, step.ex.name, step.setIndex, 'done', !wasDone)
+        btn.classList.toggle('checked', !wasDone)
+        btn.textContent = !wasDone ? '✓ Done' : 'Mark done'
+      })
+    }
 
     // Supplements
     sheet.querySelectorAll('.supplement-item').forEach(item => {
@@ -637,63 +655,81 @@ function logHasOnlyEntryButton(session, state) {
   return !hasAnyLoggedData(blocks, state)
 }
 
+// The deck is a real persistent horizontal strip — every step is built as
+// its own peeking .flow-panel up front (never lazily swapped for the
+// current one), so navigating just translates the shared .flow-track;
+// nothing here gets destroyed and recreated mid-gesture. See the deck
+// wiring in render() for the goTo()/drag logic that moves it.
 function renderFlowScreen(state, dayRecords, date) {
   const { steps, stepIndex } = state.flow
-  const step = steps[stepIndex]
-  const { ex, setIndex, kind, block } = step
-  const isLast = stepIndex === steps.length - 1
-  const nextStep = steps[stepIndex + 1]
-  const isCircuit = block.kind === 'circuit'
-  const nextLabel = isLast ? 'Finish'
-    : (!nextStep || nextStep.block !== block) ? 'Next block'
-    : nextStep.ex !== ex ? 'Next exercise'
-    : isCircuit ? 'Next round' : 'Next set'
-  const current = state.detail?.exercises?.[ex.name]?.[setIndex] ?? {}
-  const tracksWeight = ex.track?.includes('weight')
-  const tracksReps = ex.track?.includes('reps')
-  const setCount = isCircuit ? (block.rounds ?? 1) : (ex.defaultSets ?? 1)
   const progressPct = Math.round(((stepIndex + 1) / steps.length) * 100)
-  const prevHint = renderPrevHint(ex, findPreviousSet(dayRecords, date, ex.name, setIndex), 'flow-prev-hint')
+  const nextLabel = computeNextLabel(steps, stepIndex)
 
   return `
     <div class="flow-screen">
-      <div class="flow-top">
-        <div class="flow-progress-bar"><div class="flow-progress-fill" style="width:${progressPct}%"></div></div>
-        ${isCircuit ? `<div class="flow-circuit-label">${escHtml(block.label || 'Circuit')}</div>` : ''}
-        <div class="flow-exercise-name">${escHtml(ex.name)}</div>
-        ${kind === 'value' && setCount > 1 ? `<div class="flow-set-label">${isCircuit ? 'Round' : 'Set'} ${setIndex + 1} of ${setCount}</div>` : ''}
-        ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
-        ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
-        ${prevHint}
-
-        ${kind === 'done' ? `
-          <button class="flow-done-btn ${current.done ? 'checked' : ''}" id="flow-done-toggle">
-            ${current.done ? '✓ Done' : 'Mark done'}
-          </button>
-        ` : `
-          <div class="flow-wheel-group">
-            ${tracksWeight ? `
-              <div class="flow-wheel-col">
-                <div id="flow-weight-wheel"></div>
-                <div class="flow-wheel-unit">kg</div>
-              </div>
-            ` : ''}
-            ${tracksReps ? `
-              <div class="flow-wheel-col">
-                <div id="flow-reps-wheel"></div>
-                <div class="flow-wheel-unit">reps</div>
-              </div>
-            ` : ''}
-          </div>
-        `}
+      <div class="flow-progress-bar"><div class="flow-progress-fill" id="flow-progress-fill" style="width:${progressPct}%"></div></div>
+      <div class="flow-deck" id="flow-deck">
+        <div class="flow-track" id="flow-track">
+          ${steps.map((step, i) => renderFlowPanel(step, i, state, dayRecords, date)).join('')}
+        </div>
       </div>
-
       <div class="flow-nav">
-        ${stepIndex > 0 ? `<button class="btn btn-ghost flow-back-btn" id="flow-back">Back</button>` : ''}
+        <button class="btn btn-ghost flow-back-btn" id="flow-back" ${stepIndex === 0 ? 'style="visibility:hidden"' : ''}>Back</button>
         <button class="btn btn-primary flow-next-btn" id="flow-next">${nextLabel}</button>
       </div>
     </div>
   `
+}
+
+function renderFlowPanel(step, i, state, dayRecords, date) {
+  const { ex, setIndex, kind, block } = step
+  const isCircuit = block.kind === 'circuit'
+  const current = state.detail?.exercises?.[ex.name]?.[setIndex] ?? {}
+  const tracksWeight = ex.track?.includes('weight')
+  const tracksReps = ex.track?.includes('reps')
+  const setCount = isCircuit ? (block.rounds ?? 1) : (ex.defaultSets ?? 1)
+  const prevHint = renderPrevHint(ex, findPreviousSet(dayRecords, date, ex.name, setIndex), 'flow-prev-hint')
+
+  return `
+    <div class="flow-panel" data-index="${i}">
+      ${isCircuit ? `<div class="flow-circuit-label">${escHtml(block.label || 'Circuit')}</div>` : ''}
+      <div class="flow-exercise-name">${escHtml(ex.name)}</div>
+      ${kind === 'value' && setCount > 1 ? `<div class="flow-set-label">${isCircuit ? 'Round' : 'Set'} ${setIndex + 1} of ${setCount}</div>` : ''}
+      ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
+      ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
+      ${prevHint}
+
+      ${kind === 'done' ? `
+        <button class="flow-done-btn ${current.done ? 'checked' : ''}" data-flow-done="${i}">
+          ${current.done ? '✓ Done' : 'Mark done'}
+        </button>
+      ` : `
+        <div class="flow-wheel-group">
+          ${tracksWeight ? `
+            <div class="flow-wheel-col">
+              <div id="flow-weight-wheel-${i}"></div>
+              <div class="flow-wheel-unit">kg</div>
+            </div>
+          ` : ''}
+          ${tracksReps ? `
+            <div class="flow-wheel-col">
+              <div id="flow-reps-wheel-${i}"></div>
+              <div class="flow-wheel-unit">reps</div>
+            </div>
+          ` : ''}
+        </div>
+      `}
+    </div>
+  `
+}
+
+function computeNextLabel(steps, stepIndex) {
+  const step = steps[stepIndex]
+  if (stepIndex === steps.length - 1) return 'Finish'
+  const nextStep = steps[stepIndex + 1]
+  if (!nextStep || nextStep.block !== step.block) return 'Next block'
+  if (nextStep.ex !== step.ex) return 'Next exercise'
+  return step.block.kind === 'circuit' ? 'Next round' : 'Next set'
 }
 
 function renderExerciseRow(ex, state, dayRecords, date) {
