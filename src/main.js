@@ -187,13 +187,15 @@ function renderNoplan(container) {
 function renderNavTabs() {
   const nav = document.createElement('nav')
   nav.className = 'nav-tabs'
+  const weekIcon = `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="3" width="14" height="13" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M2 7.2h14" stroke="currentColor" stroke-width="1.6"/></svg>`
+  const planIcon = `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 2h8l3 3v11H4V2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M6.5 8h5M6.5 11h5M6.5 14h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`
   nav.innerHTML = `
     <button class="nav-tab ${state.tab === 'week' ? 'active' : ''}" data-tab="week">
-      <span class="nav-tab-icon">📅</span>
+      <span class="nav-tab-icon">${weekIcon}</span>
       <span class="nav-tab-label">Week</span>
     </button>
     <button class="nav-tab ${state.tab === 'plan' ? 'active' : ''}" data-tab="plan">
-      <span class="nav-tab-icon">📝</span>
+      <span class="nav-tab-icon">${planIcon}</span>
       <span class="nav-tab-label">Plan</span>
     </button>
   `

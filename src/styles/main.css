@@ -1,33 +1,42 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&family=Poppins:wght@400;500;600;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:        #111316;
-  --surface:   #1A1D21;
-  --surface2:  #21252B;
-  --border:    #333840;
-  --text:      #F9FAFB;
-  --muted:     #D6DCE3;
-  --accent:    #FF10F0;
-  --accent-dim:rgba(255,16,240,0.12);
-  --accent-ring:rgba(255,16,240,0.38);
-  --flagged:   rgba(249,250,251,0.4);
+  --bg:        #0A0A0A;
+  --surface:   #161616;
+  --surface2:  #1E1E1E;
+  --border:    #2A2A2A;
+  --text:      #FFFFFF;
+  --muted:     #8A8A8A;
+  --accent:    #CBFF3D;
+  --accent-text:#0A0A0A;
+  --accent-dim:rgba(203,255,61,0.14);
+  --accent-ring:rgba(203,255,61,0.4);
+  --accent2:   #FF6A2B;
+  --flagged:   rgba(255,255,255,0.4);
   --danger:    #E85D5D;
-  --radius:    14px;
-  --radius-sm: 9px;
+  --radius:    20px;
+  --radius-sm: 12px;
   --safe-top:  env(safe-area-inset-top, 0px);
   --safe-bot:  env(safe-area-inset-bottom, 0px);
+}
+
+/* Numerals — stats, streaks, weights, reps — get the bold display face;
+   everything else (labels, names, body copy) stays on the body face. */
+.disp {
+  font-family: 'Archivo', 'Arial Black', sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 
 html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Poppins', system-ui, sans-serif;
   font-size: 16px;
-  font-weight: 300;
-  letter-spacing: -0.01em;
+  font-weight: 500;
+  letter-spacing: -0.005em;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
@@ -59,7 +68,7 @@ html, body {
 
 .topbar-title {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--muted);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -93,7 +102,7 @@ html, body {
   border: none;
   font-family: inherit;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
   transition: opacity 0.15s;
   -webkit-tap-highlight-color: transparent;
@@ -104,7 +113,7 @@ html, body {
 
 .btn-primary {
   background: var(--accent);
-  color: #000;
+  color: var(--accent-text);
 }
 
 .btn-done {
@@ -127,12 +136,18 @@ html, body {
 .btn-full { width: 100%; }
 
 .btn-icon {
-  background: transparent;
+  background: var(--surface2);
   border: none;
-  color: var(--muted);
-  padding: 8px;
+  color: var(--text);
+  width: 38px;
+  height: 38px;
+  padding: 0;
   min-height: unset;
   border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 /* ── Week view ── */
@@ -146,7 +161,7 @@ html, body {
 
 .week-label {
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--text);
 }
 
@@ -154,15 +169,15 @@ html, body {
 .week-grid {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 7px;
 }
 
 .day-cell {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 13px;
   padding: 13px 14px;
-  border-radius: 11px;
+  border-radius: 16px;
   background: var(--surface2);
   cursor: pointer;
   transition: background 0.15s;
@@ -172,16 +187,15 @@ html, body {
 
 .day-cell:active { background: var(--border); }
 
-.day-cell.today {
-  border-color: var(--border);
-  box-shadow: inset 3px 0 0 var(--accent);
-}
+.day-cell.today { border-color: var(--accent); }
 
 .day-cell.assigned { border-color: var(--border); }
 
+/* Completed days go full solid-accent, Wise/NRC-card style — the
+   strongest visual state on the screen, reserved for "done". */
 .day-cell.completed {
-  background: var(--accent-dim);
-  border-color: var(--accent-ring);
+  background: var(--accent);
+  border-color: transparent;
 }
 
 .day-cell.future-empty { opacity: 0.38; }
@@ -191,29 +205,31 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 36px;
+  width: 34px;
   flex-shrink: 0;
 }
 
 .day-name {
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
   line-height: 1;
 }
-.day-cell.today .day-name,
-.day-cell.completed .day-name { color: var(--accent); }
+.day-cell.today .day-name { color: var(--accent); }
+.day-cell.completed .day-name { color: var(--accent-text); opacity: 0.65; }
 
 .day-num {
-  font-size: 20px;
-  font-weight: 700;
+  font-family: 'Archivo', sans-serif;
+  font-size: 19px;
+  font-weight: 800;
   color: var(--text);
   line-height: 1.15;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
 }
-.day-cell.completed .day-num { color: var(--accent); }
+.day-cell.completed .day-num { color: var(--accent-text); }
 
 /* Activity column */
 .day-activity-col {
@@ -226,16 +242,16 @@ html, body {
 
 .day-tag {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.005em;
   line-height: 1.2;
 }
-.day-cell.future-empty .day-tag { color: var(--muted); font-weight: 500; }
-.day-cell.completed .day-tag { color: var(--accent); }
+.day-cell.future-empty .day-tag { color: var(--muted); font-weight: 600; }
+.day-cell.completed .day-tag { color: var(--accent-text); }
 
 .day-sublabel {
   font-size: 13px;
@@ -244,6 +260,7 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.day-cell.completed .day-sublabel { color: rgba(10,10,10,0.6); }
 
 /* Flag badge */
 .day-flag {
@@ -264,84 +281,106 @@ html, body {
   position: relative;
   top: -1px;
 }
+.day-cell.completed .day-flag { border-color: var(--accent-text); color: var(--accent-text); }
 
-/* Status dot / check */
+/* Status: solid check circle when done, a small watch-dial ring for
+   today while it's still outstanding, a plain ring otherwise. */
 .day-status {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.day-cell.completed .day-status { background: var(--accent); }
+.day-cell.completed .day-status { background: var(--accent-text); }
 .day-cell.assigned:not(.completed) .day-status {
   border: 1.5px solid var(--border);
 }
-
-/* ── Week stats bar ── */
-.week-stats {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.stat-value {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.stat-label {
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.stat-divider {
-  width: 1px;
-  height: 32px;
-  background: var(--border);
-}
+.day-cell.today:not(.completed) .day-status { color: var(--accent); }
 
 /* ── Phase pill ── */
 .phase-pill {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: 5px 11px;
   border-radius: 20px;
   background: var(--surface2);
   border: 1px solid var(--border);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--muted);
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
 }
 
-/* ── Streak ── */
-.streak-block {
+/* ── Streak hero ── */
+/* A bold color-block with a chevron-cut bottom edge (Nike-run-screen
+   style) instead of a plain card — reserved for when a streak is
+   actually running, since it's a celebration of that, not chrome. */
+.streak-hero {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: var(--radius);
+  background: var(--accent);
+  padding: 20px 20px 46px;
+  /* The box sizes to its content first, THEN this clips it — so the flat
+     top zone (0–82%) needs real headroom below the content, not just
+     under it, or the diagonal cuts into the text instead of empty space
+     below it. min-height (not a fixed height) reserves that headroom
+     while still growing for unusually tall content; space-between then
+     spreads the content across it instead of leaving it stranded at
+     the top with a dead gap before the chevron. */
+  min-height: 220px;
+  clip-path: polygon(0 0, 100% 0, 100% 82%, 50% 100%, 0 82%);
 }
 
-.streak-count {
-  font-size: 32px;
-  font-weight: 600;
-  color: var(--accent);
-  line-height: 1;
+.streak-hero-tag {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  opacity: 0.75;
 }
 
-.streak-label {
+.streak-hero-count {
+  font-size: 64px;
+  font-weight: 900;
+  line-height: 0.85;
+  color: var(--accent-text);
+  letter-spacing: -0.02em;
+  margin-top: 6px;
+}
+
+.streak-hero-label {
   font-size: 14px;
-  color: var(--muted);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin-top: 2px;
 }
+
+.streak-hero-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.streak-hero-stat-value { font-size: 19px; font-weight: 800; color: var(--accent-text); }
+.streak-hero-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-text);
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-left: 4px;
+}
+.streak-hero-divider { width: 1.5px; height: 14px; background: var(--accent-text); opacity: 0.25; }
 
 /* ── Banners ── */
 .banner {
@@ -383,8 +422,8 @@ html, body {
 }
 
 .sheet-title {
-  font-size: 28px;
-  font-weight: 300;
+  font-size: 26px;
+  font-weight: 700;
   color: var(--text);
 }
 
@@ -398,14 +437,6 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-/* No bold/strong weights anywhere on the day sheet — these classes are
-   shared with other screens, so scope the reset to .sheet only. */
-.sheet .section-label,
-.sheet .phase-pill,
-.sheet .btn {
-  font-weight: 300;
 }
 
 /* ── Session picker ── */
@@ -441,8 +472,8 @@ html, body {
 }
 
 .session-option-name {
-  font-size: 25px;
-  font-weight: 300;
+  font-size: 22px;
+  font-weight: 700;
   color: var(--text);
   flex: 1;
 }
@@ -500,7 +531,7 @@ html, body {
 .circuit-badge {
   font-size: 12px;
   font-weight: 500;
-  color: #000;
+  color: var(--accent-text);
   background: var(--accent);
   padding: 3px 10px;
   border-radius: 20px;
@@ -525,7 +556,7 @@ html, body {
 
 .flow-circuit-label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -541,8 +572,9 @@ html, body {
 }
 
 .exercise-name {
-  font-size: 21px;
-  font-weight: 300;
+  font-family: 'Archivo', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
   color: var(--text);
 }
 
@@ -598,8 +630,9 @@ html, body {
 /* Matches .set-input's own size — the previous number reads at a glance,
    same scale as the field you're about to fill in above it. */
 .set-prev-hint .prev-hint-value {
+  font-family: 'Archivo', sans-serif;
   font-size: 34px;
-  font-weight: 300;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
@@ -622,9 +655,9 @@ html, body {
   background: transparent;
   border: none;
   color: var(--text);
-  font-family: inherit;
+  font-family: 'Archivo', sans-serif;
   font-size: 34px;
-  font-weight: 300;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   text-align: center;
   outline: none;
@@ -672,9 +705,9 @@ html, body {
   border: none;
   border-bottom: 1px solid var(--border);
   color: var(--text);
-  font-family: inherit;
+  font-family: 'Archivo', sans-serif;
   font-size: 36px;
-  font-weight: 300;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   outline: none;
   padding: 4px 0;
@@ -719,14 +752,18 @@ html, body {
 }
 
 .flow-exercise-name {
-  font-size: 30px;
-  font-weight: 300;
+  font-family: 'Archivo', sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   color: var(--text);
 }
 
 .flow-set-label {
-  font-size: 22px;
-  font-weight: 400;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--accent);
 }
 
@@ -741,24 +778,26 @@ html, body {
 
 /* Matches the flow wheel's own row size — see .set-prev-hint .prev-hint-value. */
 .flow-prev-hint .prev-hint-value {
+  font-family: 'Archivo', sans-serif;
   font-size: 44px;
-  font-weight: 300;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
 /* ── Guided flow: drag-to-scrub weight/reps wheels (wheelPicker.js) ──
    Replaces plain number inputs — drag vertically over a value to spin
-   through it instead of typing. No divider between the two wheels or
-   inside either one; distance-from-selection alone (scale + opacity,
-   driven inline from JS) is what marks the selected number. */
+   through it instead of typing. A solid accent block, same treatment as
+   a completed day row on Week — this is the app's other big "hero
+   numeral" moment. No divider between the two wheels or inside either
+   one; distance-from-selection alone (scale + opacity, driven inline
+   from JS) is what marks the selected number. */
 .flow-wheel-group {
   display: flex;
   align-items: stretch;
   margin-top: 20px;
   min-height: 96px;
-  background: var(--surface);
-  border-radius: 10px;
-  border: 1px solid var(--border);
+  background: var(--accent);
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
@@ -787,9 +826,9 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: inherit;
-  font-weight: 300;
-  color: var(--text);
+  font-family: 'Archivo', sans-serif;
+  font-weight: 800;
+  color: var(--accent-text);
   font-size: 44px;
   height: 52px;
   line-height: 1;
@@ -800,20 +839,24 @@ html, body {
 
 .flow-wheel-unit {
   margin-top: 2px;
-  font-size: 14px;
-  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  opacity: 0.6;
 }
 
 .flow-done-btn {
   margin-top: 20px;
   width: 100%;
   min-height: 96px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   border: 1.5px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  font-size: 22px;
-  font-weight: 300;
+  font-size: 18px;
+  font-weight: 700;
   font-family: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -877,7 +920,7 @@ html, body {
 
 .supplement-name {
   font-size: 16px;
-  font-weight: 300;
+  font-weight: 600;
   color: var(--text);
 }
 
@@ -920,7 +963,7 @@ html, body {
 
 .fasting-label {
   font-size: 13px;
-  font-weight: 300;
+  font-weight: 600;
   color: var(--muted);
   text-align: center;
 }
@@ -935,7 +978,7 @@ html, body {
 
 .complete-btn.done {
   background: var(--accent);
-  color: #000;
+  color: var(--accent-text);
 }
 
 /* ── Empty state ── */
@@ -1053,37 +1096,40 @@ html, body {
 /* ── Nav tabs ── */
 .nav-tabs {
   display: flex;
-  border-top: 1px solid var(--border);
-  padding-bottom: var(--safe-bot);
-  background: var(--surface);
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 18px calc(14px + var(--safe-bot));
+  background: var(--bg);
+  border-top: 1px solid var(--surface2);
 }
 
 .nav-tab {
-  flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 10px 4px;
+  gap: 8px;
+  padding: 11px 22px;
+  border-radius: 24px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   background: transparent;
   border: none;
   font-family: inherit;
+  color: var(--muted);
+  transition: background 0.15s, color 0.15s;
 }
 
-.nav-tab-icon { font-size: 20px; }
+.nav-tab-icon { display: flex; }
 
 .nav-tab-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.nav-tab.active .nav-tab-label { color: var(--accent); }
-.nav-tab.active .nav-tab-icon { filter: none; }
+.nav-tab.active {
+  background: var(--accent);
+  color: var(--accent-text);
+}
 
 /* ── Repair dialog ── */
 .repair-prompt {
@@ -1215,7 +1261,7 @@ html, body {
 .pb-active-badge {
   font-size: 11px;
   font-weight: 600;
-  color: #000;
+  color: var(--accent-text);
   background: var(--accent);
   padding: 3px 9px;
   border-radius: 20px;
@@ -1481,7 +1527,7 @@ html, body {
 
 .pb-block-circuit .pb-block-kind {
   background: var(--accent);
-  color: #000;
+  color: var(--accent-text);
 }
 
 .pb-block-num {
