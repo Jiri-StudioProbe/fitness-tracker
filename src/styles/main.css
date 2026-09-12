@@ -700,6 +700,7 @@ html, body {
   flex-direction: column;
   gap: 10px;
   padding-top: 8px;
+  touch-action: pan-y; /* horizontal swipe (move between sets) is handled in JS */
 }
 
 .flow-progress-bar {
@@ -738,21 +739,69 @@ html, body {
   font-size: 16px;
 }
 
-/* Matches .flow-input's own size — see .set-prev-hint .prev-hint-value. */
+/* Matches the flow wheel's own row size — see .set-prev-hint .prev-hint-value. */
 .flow-prev-hint .prev-hint-value {
   font-size: 44px;
   font-weight: 300;
   font-variant-numeric: tabular-nums;
 }
 
-.flow-input-group {
+/* ── Guided flow: drag-to-scrub weight/reps wheels (wheelPicker.js) ──
+   Replaces plain number inputs — drag vertically over a value to spin
+   through it instead of typing. No divider between the two wheels or
+   inside either one; distance-from-selection alone (scale + opacity,
+   driven inline from JS) is what marks the selected number. */
+.flow-wheel-group {
+  display: flex;
+  align-items: stretch;
   margin-top: 20px;
   min-height: 96px;
-  padding: 24px;
+  background: var(--surface);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  overflow: hidden;
 }
 
-.flow-input {
+.flow-wheel-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0 12px;
+}
+
+.flow-wheel-mask {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+}
+
+.flow-wheel-mask:active { cursor: grabbing; }
+
+.flow-wheel-row {
+  position: absolute;
+  left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-weight: 300;
+  color: var(--text);
   font-size: 44px;
+  height: 52px;
+  line-height: 1;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  transition: opacity .18s ease;
+}
+
+.flow-wheel-unit {
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--muted);
 }
 
 .flow-done-btn {
