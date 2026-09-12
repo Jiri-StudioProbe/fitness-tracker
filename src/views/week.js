@@ -1,5 +1,5 @@
 import { weekDates, prevWeek, nextWeek, today, formatWeekRange, shortDayName, addDays } from '../dates.js'
-import { weekBanners } from '../engine.js'
+import { weekBanners, weekStats } from '../engine.js'
 import { getPhaseForDate } from '../plan.js'
 
 export function renderWeekView({ plan, dayRecords, currentWeek, onDayTap, onPrevWeek, onNextWeek, onToday }) {
@@ -8,6 +8,9 @@ export function renderWeekView({ plan, dayRecords, currentWeek, onDayTap, onPrev
   const banners = weekBanners(plan, dayRecords, dates)
   const phase = getPhaseForDate(plan, todayStr)
   const streak = calcStreak(dayRecords, todayStr)
+  // weekStats reads weeklyTargetSessions off the inner plan object, not
+  // the {plan, sessionTypes, ...} wrapper this view receives as `plan`.
+  const stats = weekStats(plan.plan, dayRecords, dates)
 
   const el = document.createElement('div')
   el.className = 'screen'
@@ -20,15 +23,15 @@ export function renderWeekView({ plan, dayRecords, currentWeek, onDayTap, onPrev
     <div class="content">
 
       ${streak > 0 ? `
-      <!-- Streak -->
-      <div class="card">
-        <div class="week-stats">
-          <div class="stat-item">
-            <div class="streak-block">
-              <span class="streak-count">${streak}</span>
-              <span class="streak-label">day streak</span>
-            </div>
-          </div>
+      <!-- Streak hero -->
+      <div class="streak-hero">
+        <div>
+          <span class="streak-hero-tag">Streak</span>
+          <div class="streak-hero-count disp">${streak}</div>
+          <div class="streak-hero-label">day streak</div>
+        </div>
+        <div class="streak-hero-stats">
+          <span><span class="streak-hero-stat-value disp">${stats.completed}/${stats.target}</span><span class="streak-hero-stat-label">this week</span></span>
         </div>
       </div>` : ''}
 
@@ -86,7 +89,15 @@ function renderDayCell(date, record, isToday, plan, dayRecords) {
   const flagged = hasActivity && isDayFlagged(plan, dayRecords, date)
   const sublabel = flagged ? 'Two hard in a row' : location
 
-  const check = `<svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 5.5l2.5 2.5 5.5-5" stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+  // Completed: a solid check on the accent-fill row. Today, still
+  // outstanding: a small watch-dial ring instead — a status other rows
+  // don't get, without repeating the date number already shown on the left.
+  const check = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6.2l2.7 2.7 5.3-6" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+  const dial = `<svg width="22" height="22" viewBox="0 0 22 22" fill="none" style="color:var(--accent)">
+    <circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <path d="M11 2.8v2.1M19.2 11h-2.1M11 19.2v-2.1M2.8 11h2.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`
+  const status = completed ? check : (isToday ? dial : '')
 
   return `
     <div class="${cls}" data-date="${date}">
@@ -98,7 +109,7 @@ function renderDayCell(date, record, isToday, plan, dayRecords) {
         <div class="day-tag">${esc(label)}${flagged ? '<span class="day-flag">!</span>' : ''}</div>
         ${sublabel ? `<div class="day-sublabel">${esc(sublabel)}</div>` : ''}
       </div>
-      <div class="day-status">${completed ? check : ''}</div>
+      <div class="day-status">${status}</div>
     </div>
   `
 }
