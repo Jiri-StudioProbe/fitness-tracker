@@ -719,21 +719,40 @@ html, body {
   flex-shrink: 0;
 }
 
-/* ── Guided one-set-at-a-time flow ── */
+/* ── Guided one-set-at-a-time flow ──
+   A real persistent horizontal strip, not a single full-page step: every
+   step is its own .flow-panel sitting side by side in .flow-track, and
+   .flow-deck's fixed side margin keeps a slice of each neighbour peeking
+   in at rest. Navigating (drag or Back/Next) only ever translates
+   .flow-track in JS — see day.js — so the deck's own DOM, including any
+   wheel mid-drag, never gets rebuilt underneath the gesture. */
 .flow-screen {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   min-height: 62vh;
-  gap: 24px;
+  gap: 16px;
 }
 
-.flow-top {
+.flow-deck {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  touch-action: pan-y; /* horizontal drag (move between steps) is handled in JS */
+}
+
+.flow-track {
+  display: flex;
+  align-items: stretch;
+  will-change: transform;
+}
+
+.flow-panel {
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding-top: 8px;
-  touch-action: pan-y; /* horizontal swipe (move between sets) is handled in JS */
 }
 
 .flow-progress-bar {
