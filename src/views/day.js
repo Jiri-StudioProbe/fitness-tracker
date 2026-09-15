@@ -303,8 +303,8 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     })
     sheet.querySelectorAll('.set-done').forEach(inp => {
       inp.addEventListener('change', e => {
-        const ex = e.target.dataset.ex
-        setDetailValue(state, ex, 0, 'done', e.target.checked)
+        const { ex, set } = e.target.dataset
+        setDetailValue(state, ex, set, 'done', e.target.checked)
         persist()
       })
     })
@@ -603,8 +603,19 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
 function setDetailValue(state, exName, setIndex, field, value) {
   if (!state.detail.exercises) state.detail.exercises = {}
   if (!state.detail.exercises[exName]) state.detail.exercises[exName] = []
-  if (!state.detail.exercises[exName][setIndex]) state.detail.exercises[exName][setIndex] = {}
-  state.detail.exercises[exName][setIndex][field] = value
+  const arr = state.detail.exercises[exName]
+  const idx = Number(setIndex)
+  // Writing straight to `idx` when it's beyond the array's current
+  // length (e.g. marking round 3 of a circuit's done-tracked exercise
+  // without ever touching round 2 — now reachable since rounds no
+  // longer have to be visited in order) would leave a genuine hole at
+  // the skipped index rather than an empty object. A hole serializes as
+  // `null` and, worse, Firestore's client SDK rejects arrays containing
+  // one outright — fill every skipped slot with a real empty object.
+  for (let i = arr.length; i <= idx; i++) {
+    if (!arr[i]) arr[i] = {}
+  }
+  arr[idx][field] = value
 }
 
 function renderActivitySummary(state) {
@@ -696,12 +707,14 @@ function buildFlowSteps(blocks) {
     if (block.kind === 'circuit') {
       // Round count is the block's own `rounds`, not any per-exercise
       // defaultSets (circuit members don't carry their own set count —
-      // the whole group repeats together). A done/checkbox exercise
-      // nested in a circuit still only needs marking once, though.
+      // the whole group repeats together). That includes a done/checkbox
+      // exercise (e.g. Plank, Dead bugs) nested in the circuit: the point
+      // of a circuit is that every member gets done once per round, so
+      // it repeats exactly like its weight/reps neighbours — no special
+      // case here.
       const rounds = block.rounds ?? 1
       for (let round = 0; round < rounds; round++) {
         for (const ex of block.exercises) {
-          if (isDone(ex) && round > 0) continue
           steps.push({ ex, setIndex: round, kind: kindOf(ex), block })
         }
       }
@@ -834,7 +847,7 @@ function renderFlowPanel(step, i, state, dayRecords, date) {
     <div class="flow-panel" data-index="${i}">
       ${isCircuit ? `<div class="flow-circuit-label">${escHtml(block.label || 'Circuit')}</div>` : ''}
       <div class="flow-exercise-name">${escHtml(ex.name)}</div>
-      ${kind === 'value' && setCount > 1 ? `<div class="flow-set-label">${isCircuit ? 'Round' : 'Set'} ${setIndex + 1} of ${setCount}</div>` : ''}
+      ${setCount > 1 ? `<div class="flow-set-label">${isCircuit ? 'Round' : 'Set'} ${setIndex + 1} of ${setCount}</div>` : ''}
       ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
       ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
       ${prevHint}
@@ -875,10 +888,27 @@ function computeNextLabel(steps, stepIndex) {
   return step.block.kind === 'circuit' ? 'Next round' : 'Next set'
 }
 
-function renderExerciseRow(ex, state, dayRecords, date) {
-  const defaultCount = ex.defaultSets ?? 1
+// `roundsOverride` is a circuit's own round count, passed down by
+// renderBlock — circuit members don't carry their own set count (the
+// whole group repeats together), so without this a fresh, never-logged
+// circuit exercise would fall back to a single set/checkbox regardless
+// of how many rounds the circuit actually has.
+function renderExerciseRow(ex, state, dayRecords, date, roundsOverride) {
+  const defaultCount = roundsOverride ?? (ex.defaultSets ?? 1)
   const emptySet = ex.track?.includes('done') ? { done: false } : { weight: '', reps: '' }
-  const sets = state.detail?.exercises?.[ex.name] ?? Array.from({ length: defaultCount }, () => ({ ...emptySet }))
+  // Not a plain `?? fallback` — a done-tracked circuit exercise only
+  // gets a real array entry for a round once its checkbox is actually
+  // toggled (unlike weight/reps wheels, which seed every round's slot
+  // the moment the flow opens), so the real array can be genuinely
+  // shorter than the round count even after some rounds are logged.
+  // Build the array by index, filling gaps with an empty placeholder,
+  // rather than only falling back when nothing exists yet — but never
+  // shorter than the real array, or a sequential exercise with an
+  // extra set added via "+ Set" beyond its own defaultSets would have
+  // that extra set truncated from view.
+  const realSets = state.detail?.exercises?.[ex.name]
+  const length = Math.max(defaultCount, realSets?.length ?? 0)
+  const sets = Array.from({ length }, (_, si) => realSets?.[si] ?? { ...emptySet })
   const tracksWeight = ex.track?.includes('weight')
   const tracksReps = ex.track?.includes('reps')
   const tracksDone = ex.track?.includes('done')
@@ -891,10 +921,14 @@ function renderExerciseRow(ex, state, dayRecords, date) {
       ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
       ${tracksDone ? `
         ${doneHint}
-        <label class="done-row">
-          <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" />
-          <span class="done-label">Done</span>
-        </label>
+        <div class="done-rows">
+          ${sets.map((set, si) => `
+            <label class="done-row">
+              <input type="checkbox" ${set?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" data-set="${si}" class="set-done" />
+              <span class="done-label">${sets.length > 1 ? `Round ${si + 1}` : 'Done'}</span>
+            </label>
+          `).join('')}
+        </div>
       ` : `
         <div class="sets-row">
           ${sets.map((set, si) => {
@@ -938,7 +972,7 @@ function renderBlock(block, state, dayRecords, date) {
         ${block.label ? `<span class="circuit-block-label">${escHtml(block.label)}</span>` : ''}
       </div>
       <div class="circuit-block-exercises">
-        ${block.exercises.map(ex => renderExerciseRow(ex, state, dayRecords, date)).join('')}
+        ${block.exercises.map(ex => renderExerciseRow(ex, state, dayRecords, date, rounds)).join('')}
       </div>
     </div>
   `

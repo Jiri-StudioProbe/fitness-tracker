@@ -583,6 +583,15 @@ html, body {
   color: var(--muted);
 }
 
+/* A circuit's done-tracked exercise (Plank, Dead bugs, ...) gets one
+   row per round, same as a weight/reps exercise gets one input group
+   per round — .done-row's own vertical padding is enough spacing
+   between stacked rows without needing an explicit gap here. */
+.done-rows {
+  display: flex;
+  flex-direction: column;
+}
+
 .done-row {
   display: flex;
   align-items: center;
