@@ -10,6 +10,12 @@ import { cloudDb } from '../cloud/cloudDb.js'
 // number input. Generous enough for any real set; not user-configurable.
 const WHEEL_WEIGHT_MIN = 0, WHEEL_WEIGHT_MAX = 150
 const WHEEL_REPS_MIN = 0, WHEEL_REPS_MAX = 40
+// The half-kg wheel is a second, narrower wheel next to the whole-kg
+// one — not a finer-grained weight wheel on its own, just a 0/0.5 toggle
+// spun the same way — so plates can be dialled in to the nearest half
+// kilo without needing 0.5-sized steps across the entire 0–150 range.
+const WHEEL_HALF_MIN = 0, WHEEL_HALF_MAX = 1
+const formatHalfKg = v => (v === 1 ? '0.5' : '0')
 
 // ── Local draft autosave ────────────────────────────────────────────
 // A day being logged lives only in this sheet's in-memory `state` until
@@ -360,7 +366,50 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
             },
           })
         }
-        mountFlowWheel(`#flow-weight-wheel-${i}`, 'weight', WHEEL_WEIGHT_MIN, WHEEL_WEIGHT_MAX)
+
+        // Weight is two wheels sharing one field: a whole-kg wheel plus a
+        // narrow 0/0.5 wheel next to it, so plates can be dialled in to
+        // the nearest half kilo. Both read/write the same 'weight' value
+        // as a single decimal (e.g. "62.5") rather than as separate
+        // fields — each wheel's onChange re-reads the CURRENT weight from
+        // state rather than closing over a value captured at mount time,
+        // so touching one wheel can never clobber a change already made
+        // on the other in the same visit to this panel.
+        function mountFlowWeightWheels(wholeId, halfId, field) {
+          const wholeMask = sheet.querySelector(wholeId)
+          const halfMask = sheet.querySelector(halfId)
+          if (!wholeMask && !halfMask) return
+          const hasExisting = existing?.[field] !== undefined && existing[field] !== ''
+          const fallback = prevSet?.[field] !== undefined && prevSet[field] !== '' ? Number(prevSet[field]) : 0
+          const startTotal = hasExisting ? Number(existing[field]) : fallback
+          if (!hasExisting) setDetailValue(state, step.ex.name, step.setIndex, field, String(startTotal))
+
+          function currentTotal() {
+            const v = state.detail?.exercises?.[step.ex.name]?.[step.setIndex]?.[field]
+            return v !== undefined && v !== '' ? Number(v) : 0
+          }
+          function setTotal(whole, half) {
+            // Round to kill float artifacts like 62.49999999999999.
+            const total = Math.round((whole + half * 0.5) * 2) / 2
+            setDetailValue(state, step.ex.name, step.setIndex, field, String(total))
+            persist()
+          }
+
+          if (wholeMask) {
+            mountWheelPicker(wholeMask, {
+              min: WHEEL_WEIGHT_MIN, max: WHEEL_WEIGHT_MAX, value: Math.floor(startTotal),
+              onChange: v => setTotal(v, currentTotal() % 1 >= 0.5 ? 1 : 0),
+            })
+          }
+          if (halfMask) {
+            mountWheelPicker(halfMask, {
+              min: WHEEL_HALF_MIN, max: WHEEL_HALF_MAX, value: startTotal % 1 >= 0.5 ? 1 : 0,
+              format: formatHalfKg,
+              onChange: v => setTotal(Math.floor(currentTotal()), v),
+            })
+          }
+        }
+        mountFlowWeightWheels(`#flow-weight-wheel-${i}`, `#flow-half-wheel-${i}`, 'weight')
         mountFlowWheel(`#flow-reps-wheel-${i}`, 'reps', WHEEL_REPS_MIN, WHEEL_REPS_MAX)
       })
 
@@ -801,6 +850,9 @@ function renderFlowPanel(step, i, state, dayRecords, date) {
               <div id="flow-weight-wheel-${i}"></div>
               <div class="flow-wheel-unit">kg</div>
             </div>
+            <div class="flow-wheel-col flow-wheel-col-half">
+              <div id="flow-half-wheel-${i}"></div>
+            </div>
           ` : ''}
           ${tracksReps ? `
             <div class="flow-wheel-col">
@@ -852,7 +904,7 @@ function renderExerciseRow(ex, state, dayRecords, date) {
               ${prevHint}
               <div class="set-input-group">
                 ${tracksWeight ? `
-                  <input type="number" class="set-input set-weight" inputmode="decimal" placeholder="—" value="${escHtml(set.weight ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
+                  <input type="number" class="set-input set-weight" inputmode="decimal" step="0.5" placeholder="—" value="${escHtml(set.weight ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
                   <span class="set-input-label">kg</span>
                   <span class="set-input-label" style="margin:0 2px">×</span>
                 ` : ''}

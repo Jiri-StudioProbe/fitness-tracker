@@ -828,6 +828,12 @@ html, body {
   padding: 10px 0 14px;
 }
 
+/* The half-kg wheel only ever shows "0" or "0.5" — it doesn't need an
+   even share of the group's width like the whole-kg/reps wheels do. */
+.flow-wheel-col-half {
+  flex: 0 0 76px;
+}
+
 /* 3 rows × 52px row height (see wheelPicker.js's ROW_H) — anything
    shorter clips a few px off the top/bottom peek rows. */
 .flow-wheel-mask {
