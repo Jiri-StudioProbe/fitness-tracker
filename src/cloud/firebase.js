@@ -1,6 +1,9 @@
 import { initializeApp } from 'firebase/app'
 import {
-  getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  inMemoryPersistence,
   connectAuthEmulator,
 } from 'firebase/auth'
 import {
@@ -13,7 +16,18 @@ import { firebaseConfig, useEmulators } from './firebaseConfig.js'
 
 const app = initializeApp(firebaseConfig)
 
-export const auth = getAuth(app)
+// getAuth()'s implicit default is indexedDBLocalPersistence with no
+// fallback — fine normally, but IndexedDB is exactly the storage Safari
+// (especially installed/home-screen PWAs, and Private Browsing) is most
+// aggressive about evicting or blocking, and a failed IndexedDB open
+// with no fallback configured can silently downgrade to session-only
+// persistence. Listing an explicit fallback chain means a device that
+// can't do IndexedDB still keeps the session in localStorage rather
+// than losing it outright — only a device with neither survives just
+// for the current tab.
+export const auth = initializeAuth(app, {
+  persistence: [indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence],
+})
 
 // Persistent local cache = writes made with no signal queue on-device and
 // flush to Firestore once connectivity returns, and reads serve from

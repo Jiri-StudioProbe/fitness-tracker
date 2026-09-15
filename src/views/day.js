@@ -3,12 +3,61 @@ import { recommendDay, FLAG } from '../engine.js'
 import { getSessionById, getSupplementsForDay } from '../plan.js'
 import { showConfirm } from '../dialogs.js'
 import { mountWheelPicker } from './wheelPicker.js'
+import { cloudDb } from '../cloud/cloudDb.js'
 
 // Practical bounds for the guided flow's drag-to-scrub weight/reps wheels
 // — a wheel needs a fixed range to spin through, unlike a free-text
 // number input. Generous enough for any real set; not user-configurable.
 const WHEEL_WEIGHT_MIN = 0, WHEEL_WEIGHT_MAX = 150
 const WHEEL_REPS_MIN = 0, WHEEL_REPS_MAX = 40
+
+// ── Local draft autosave ────────────────────────────────────────────
+// A day being logged lives only in this sheet's in-memory `state` until
+// something saves it — previously that was only "Mark complete" or
+// closing the sheet. A session interrupted before that (auth dropped,
+// the tab got backgrounded and reloaded, connectivity dropped) lost
+// everything entered. localStorage doesn't care about auth or network,
+// so it's the actual safety net; the Firestore write in `persist()`
+// below is the happy-path complement, best-effort and silently swallowed
+// on failure. See recoverDayDrafts() for the other half: picking these
+// back up on the next boot and pushing them to Firestore once a session
+// exists again.
+const DRAFT_PREFIX = 'fitness-tracker:dayDraft:'
+
+function draftKey(date) { return DRAFT_PREFIX + date }
+
+function saveLocalDraft(record) {
+  try { localStorage.setItem(draftKey(record.date), JSON.stringify(record)) } catch { /* ignore */ }
+}
+
+function clearLocalDraft(date) {
+  try { localStorage.removeItem(draftKey(date)) } catch { /* ignore */ }
+}
+
+// Call once on app boot (after a user is signed in). Merges any drafts
+// still sitting in localStorage into `dayRecords` — so a day interrupted
+// mid-session shows its real data immediately, even before the flush
+// below finishes or if it fails again — then best-effort re-saves each
+// to Firestore, clearing the draft only once that succeeds. A draft that
+// fails to push (still offline, or signed out again) is left in place
+// for the next boot to retry; nothing is ever dropped on the floor.
+export async function recoverDayDrafts(dayRecords) {
+  let keys
+  try { keys = Object.keys(localStorage) } catch { return }
+  for (const key of keys) {
+    if (!key.startsWith(DRAFT_PREFIX)) continue
+    let record
+    try { record = JSON.parse(localStorage.getItem(key)) } catch { continue }
+    if (!record?.date) continue
+    dayRecords[record.date] = record
+    try {
+      await cloudDb.saveDay(record)
+      clearLocalDraft(record.date)
+    } catch {
+      // Still offline or signed out — keep the draft, retry next boot.
+    }
+  }
+}
 
 const FLAG_LABELS = {
   [FLAG.CONSECUTIVE_HARD]: 'Two hard sessions in a row',
@@ -66,6 +115,33 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     } else {
       state.flow.stepIndex = next
     }
+  }
+
+  function buildRecord() {
+    return {
+      date,
+      activityId: state.activityId,
+      activityType: state.activityType,
+      activityLabel: state.activityLabel,
+      completed: state.completed,
+      detail: state.detail,
+      supplements: state.supplements,
+      fasting: state.fasting,
+    }
+  }
+
+  // Silent autosave: call after every change that represents real
+  // workout data (a set value, a done toggle, which activity/supplements/
+  // fasting are picked) — not after purely-navigational state changes
+  // (which picker view is open, which flow step is active on its own).
+  // Never awaited by a caller and never throws: the localStorage draft
+  // always lands; the Firestore write is a best-effort bonus on top of
+  // it, so losing network or auth mid-session loses nothing more than
+  // "not yet synced," not the data itself.
+  function persist() {
+    const rec = buildRecord()
+    saveLocalDraft(rec)
+    cloudDb.saveDay(rec).catch(() => { /* offline or signed out — draft is safe locally, see recoverDayDrafts */ })
   }
 
   function render() {
@@ -186,6 +262,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       }
       state.pickerOpen = false
       render()
+      persist()
     })
 
     sheet.querySelector('#activity-summary')?.addEventListener('click', () => {
@@ -199,6 +276,8 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         state.customText = e.target.value
         state.activityLabel = e.target.value || 'Custom activity'
       })
+      // Not on every keystroke (input) — on blur, once typing settles.
+      customInput.addEventListener('blur', () => persist())
     }
 
     // Glanceable sets inputs
@@ -206,18 +285,21 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       inp.addEventListener('change', e => {
         const { ex, set } = e.target.dataset
         setDetailValue(state, ex, set, 'weight', e.target.value)
+        persist()
       })
     })
     sheet.querySelectorAll('.set-reps').forEach(inp => {
       inp.addEventListener('change', e => {
         const { ex, set } = e.target.dataset
         setDetailValue(state, ex, set, 'reps', e.target.value)
+        persist()
       })
     })
     sheet.querySelectorAll('.set-done').forEach(inp => {
       inp.addEventListener('change', e => {
         const ex = e.target.dataset.ex
         setDetailValue(state, ex, 0, 'done', e.target.checked)
+        persist()
       })
     })
     sheet.querySelectorAll('.add-set-btn').forEach(btn => {
@@ -231,10 +313,10 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     })
 
     const distInput = sheet.querySelector('#distance-input')
-    if (distInput) distInput.addEventListener('change', e => { state.detail.distance = e.target.value })
+    if (distInput) distInput.addEventListener('change', e => { state.detail.distance = e.target.value; persist() })
 
     const lengthsInput = sheet.querySelector('#lengths-input')
-    if (lengthsInput) lengthsInput.addEventListener('change', e => { state.detail.lengths = e.target.value })
+    if (lengthsInput) lengthsInput.addEventListener('change', e => { state.detail.lengths = e.target.value; persist() })
 
     // Guided flow: start / navigate
     sheet.querySelector('#start-flow')?.addEventListener('click', () => {
@@ -272,7 +354,10 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
           if (!hasExisting) setDetailValue(state, step.ex.name, step.setIndex, field, String(startValue))
           mountWheelPicker(mask, {
             min, max, value: startValue,
-            onChange: v => setDetailValue(state, step.ex.name, step.setIndex, field, String(v)),
+            onChange: v => {
+              setDetailValue(state, step.ex.name, step.setIndex, field, String(v))
+              persist()
+            },
           })
         }
         mountFlowWheel(`#flow-weight-wheel-${i}`, 'weight', WHEEL_WEIGHT_MIN, WHEEL_WEIGHT_MAX)
@@ -312,10 +397,16 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
 
         function goTo(index, animate = true) {
           index = clampIndex(index)
+          // Distinguish a real step change from the initial no-animation
+          // mount call and from snapping back to the step you were
+          // already on — only an actual move onto the next/previous
+          // exercise should trigger a save.
+          const changed = index !== state.flow.stepIndex
           state.flow.stepIndex = index
           track.style.transition = animate ? `transform ${SLIDE_MS}ms ${SLIDE_EASE}` : 'none'
           track.style.transform = `translateX(${centerOffset() - index * (panelW + GAP)}px)`
           updateChrome(index)
+          if (changed) persist()
         }
 
         // Land on the step the flow actually opened on — no transition,
@@ -391,6 +482,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         setDetailValue(state, step.ex.name, step.setIndex, 'done', !wasDone)
         btn.classList.toggle('checked', !wasDone)
         btn.textContent = !wasDone ? '✓ Done' : 'Mark done'
+        persist()
       })
     }
 
@@ -402,6 +494,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         if (idx >= 0) state.supplements.splice(idx, 1)
         else state.supplements.push(name)
         render()
+        persist()
       })
     })
 
@@ -410,6 +503,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       opt.addEventListener('click', () => {
         state.fasting = opt.dataset.value
         render()
+        persist()
       })
     })
 
@@ -442,16 +536,13 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
   }
 
   function save(withCelebration) {
-    const rec = {
-      date,
-      activityId: state.activityId,
-      activityType: state.activityType,
-      activityLabel: state.activityLabel,
-      completed: state.completed,
-      detail: state.detail,
-      supplements: state.supplements,
-      fasting: state.fasting,
-    }
+    const rec = buildRecord()
+    // Don't clear the local draft here — onSave's own cloudDb write
+    // isn't awaited by this function, so it may still be in flight (or
+    // stuck offline) by the time this returns. The draft is only ever
+    // cleared once recoverDayDrafts() has confirmed a successful cloud
+    // write for it, on this boot or a later one.
+    saveLocalDraft(rec)
     onSave(rec, withCelebration && state.completed)
   }
 
