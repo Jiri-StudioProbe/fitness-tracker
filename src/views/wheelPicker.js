@@ -28,7 +28,7 @@ function smoothstep(t) { return t * t * (3 - 2 * t) }
 // existing mount; a drag in progress survives because nothing here
 // calls back into the app's own render() until the value actually
 // commits on release.
-export function mountWheelPicker(container, { min, max, value, onChange }) {
+export function mountWheelPicker(container, { min, max, value, onChange, format }) {
   container.innerHTML = ''
   container.classList.add('flow-wheel-mask')
 
@@ -42,7 +42,7 @@ export function mountWheelPicker(container, { min, max, value, onChange }) {
       row.className = 'flow-wheel-row'
       row.dataset.i = i
       row.style.top = `calc(50% + ${i * ROW_H}px - ${ROW_H / 2}px)`
-      row.textContent = (v >= min && v <= max) ? v : ''
+      row.textContent = (v >= min && v <= max) ? (format ? format(v) : v) : ''
       container.appendChild(row)
     }
     state.center = center

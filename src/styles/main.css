@@ -583,6 +583,15 @@ html, body {
   color: var(--muted);
 }
 
+/* A circuit's done-tracked exercise (Plank, Dead bugs, ...) gets one
+   row per round, same as a weight/reps exercise gets one input group
+   per round — .done-row's own vertical padding is enough spacing
+   between stacked rows without needing an explicit gap here. */
+.done-rows {
+  display: flex;
+  flex-direction: column;
+}
+
 .done-row {
   display: flex;
   align-items: center;
@@ -826,6 +835,12 @@ html, body {
   flex-direction: column;
   align-items: center;
   padding: 10px 0 14px;
+}
+
+/* The half-kg wheel only ever shows "0" or "0.5" — it doesn't need an
+   even share of the group's width like the whole-kg/reps wheels do. */
+.flow-wheel-col-half {
+  flex: 0 0 76px;
 }
 
 /* 3 rows × 52px row height (see wheelPicker.js's ROW_H) — anything

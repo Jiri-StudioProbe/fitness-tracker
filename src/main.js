@@ -5,7 +5,7 @@ import { renderSignInView } from './views/signIn.js'
 import { weekStart, today, prevWeek, nextWeek, weekDates } from './dates.js'
 import { weekStats } from './engine.js'
 import { renderWeekView } from './views/week.js'
-import { renderDaySheet } from './views/day.js'
+import { renderDaySheet, recoverDayDrafts } from './views/day.js'
 import { renderPlanBuilderView } from './views/planBuilder.js'
 
 const app = document.getElementById('app')
@@ -97,6 +97,13 @@ async function initApp() {
 
   const days = await cloudDb.getAllDays()
   state.dayRecords = Object.fromEntries(days.map(d => [d.date, d]))
+
+  // Pick up any day drafts that got saved locally but never made it to
+  // Firestore last time (auth dropped mid-session, tab reloaded, no
+  // connectivity) — merges them into dayRecords right away and pushes
+  // them to the cloud now that a fresh signed-in session exists. See
+  // day.js's persist()/recoverDayDrafts() for the other half of this.
+  await recoverDayDrafts(state.dayRecords)
 
   const savedWeek = await cloudDb.getMeta('currentWeek')
   if (savedWeek && new Date(savedWeek + 'T00:00:00').getDay() === 1) {

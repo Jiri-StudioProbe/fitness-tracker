@@ -3,12 +3,67 @@ import { recommendDay, FLAG } from '../engine.js'
 import { getSessionById, getSupplementsForDay } from '../plan.js'
 import { showConfirm } from '../dialogs.js'
 import { mountWheelPicker } from './wheelPicker.js'
+import { cloudDb } from '../cloud/cloudDb.js'
 
 // Practical bounds for the guided flow's drag-to-scrub weight/reps wheels
 // — a wheel needs a fixed range to spin through, unlike a free-text
 // number input. Generous enough for any real set; not user-configurable.
 const WHEEL_WEIGHT_MIN = 0, WHEEL_WEIGHT_MAX = 150
 const WHEEL_REPS_MIN = 0, WHEEL_REPS_MAX = 40
+// The half-kg wheel is a second, narrower wheel next to the whole-kg
+// one — not a finer-grained weight wheel on its own, just a 0/0.5 toggle
+// spun the same way — so plates can be dialled in to the nearest half
+// kilo without needing 0.5-sized steps across the entire 0–150 range.
+const WHEEL_HALF_MIN = 0, WHEEL_HALF_MAX = 1
+const formatHalfKg = v => (v === 1 ? '0.5' : '0')
+
+// ── Local draft autosave ────────────────────────────────────────────
+// A day being logged lives only in this sheet's in-memory `state` until
+// something saves it — previously that was only "Mark complete" or
+// closing the sheet. A session interrupted before that (auth dropped,
+// the tab got backgrounded and reloaded, connectivity dropped) lost
+// everything entered. localStorage doesn't care about auth or network,
+// so it's the actual safety net; the Firestore write in `persist()`
+// below is the happy-path complement, best-effort and silently swallowed
+// on failure. See recoverDayDrafts() for the other half: picking these
+// back up on the next boot and pushing them to Firestore once a session
+// exists again.
+const DRAFT_PREFIX = 'fitness-tracker:dayDraft:'
+
+function draftKey(date) { return DRAFT_PREFIX + date }
+
+function saveLocalDraft(record) {
+  try { localStorage.setItem(draftKey(record.date), JSON.stringify(record)) } catch { /* ignore */ }
+}
+
+function clearLocalDraft(date) {
+  try { localStorage.removeItem(draftKey(date)) } catch { /* ignore */ }
+}
+
+// Call once on app boot (after a user is signed in). Merges any drafts
+// still sitting in localStorage into `dayRecords` — so a day interrupted
+// mid-session shows its real data immediately, even before the flush
+// below finishes or if it fails again — then best-effort re-saves each
+// to Firestore, clearing the draft only once that succeeds. A draft that
+// fails to push (still offline, or signed out again) is left in place
+// for the next boot to retry; nothing is ever dropped on the floor.
+export async function recoverDayDrafts(dayRecords) {
+  let keys
+  try { keys = Object.keys(localStorage) } catch { return }
+  for (const key of keys) {
+    if (!key.startsWith(DRAFT_PREFIX)) continue
+    let record
+    try { record = JSON.parse(localStorage.getItem(key)) } catch { continue }
+    if (!record?.date) continue
+    dayRecords[record.date] = record
+    try {
+      await cloudDb.saveDay(record)
+      clearLocalDraft(record.date)
+    } catch {
+      // Still offline or signed out — keep the draft, retry next boot.
+    }
+  }
+}
 
 const FLAG_LABELS = {
   [FLAG.CONSECUTIVE_HARD]: 'Two hard sessions in a row',
@@ -66,6 +121,33 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     } else {
       state.flow.stepIndex = next
     }
+  }
+
+  function buildRecord() {
+    return {
+      date,
+      activityId: state.activityId,
+      activityType: state.activityType,
+      activityLabel: state.activityLabel,
+      completed: state.completed,
+      detail: state.detail,
+      supplements: state.supplements,
+      fasting: state.fasting,
+    }
+  }
+
+  // Silent autosave: call after every change that represents real
+  // workout data (a set value, a done toggle, which activity/supplements/
+  // fasting are picked) — not after purely-navigational state changes
+  // (which picker view is open, which flow step is active on its own).
+  // Never awaited by a caller and never throws: the localStorage draft
+  // always lands; the Firestore write is a best-effort bonus on top of
+  // it, so losing network or auth mid-session loses nothing more than
+  // "not yet synced," not the data itself.
+  function persist() {
+    const rec = buildRecord()
+    saveLocalDraft(rec)
+    cloudDb.saveDay(rec).catch(() => { /* offline or signed out — draft is safe locally, see recoverDayDrafts */ })
   }
 
   function render() {
@@ -186,6 +268,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       }
       state.pickerOpen = false
       render()
+      persist()
     })
 
     sheet.querySelector('#activity-summary')?.addEventListener('click', () => {
@@ -199,6 +282,8 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         state.customText = e.target.value
         state.activityLabel = e.target.value || 'Custom activity'
       })
+      // Not on every keystroke (input) — on blur, once typing settles.
+      customInput.addEventListener('blur', () => persist())
     }
 
     // Glanceable sets inputs
@@ -206,18 +291,21 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       inp.addEventListener('change', e => {
         const { ex, set } = e.target.dataset
         setDetailValue(state, ex, set, 'weight', e.target.value)
+        persist()
       })
     })
     sheet.querySelectorAll('.set-reps').forEach(inp => {
       inp.addEventListener('change', e => {
         const { ex, set } = e.target.dataset
         setDetailValue(state, ex, set, 'reps', e.target.value)
+        persist()
       })
     })
     sheet.querySelectorAll('.set-done').forEach(inp => {
       inp.addEventListener('change', e => {
-        const ex = e.target.dataset.ex
-        setDetailValue(state, ex, 0, 'done', e.target.checked)
+        const { ex, set } = e.target.dataset
+        setDetailValue(state, ex, set, 'done', e.target.checked)
+        persist()
       })
     })
     sheet.querySelectorAll('.add-set-btn').forEach(btn => {
@@ -231,10 +319,10 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
     })
 
     const distInput = sheet.querySelector('#distance-input')
-    if (distInput) distInput.addEventListener('change', e => { state.detail.distance = e.target.value })
+    if (distInput) distInput.addEventListener('change', e => { state.detail.distance = e.target.value; persist() })
 
     const lengthsInput = sheet.querySelector('#lengths-input')
-    if (lengthsInput) lengthsInput.addEventListener('change', e => { state.detail.lengths = e.target.value })
+    if (lengthsInput) lengthsInput.addEventListener('change', e => { state.detail.lengths = e.target.value; persist() })
 
     // Guided flow: start / navigate
     sheet.querySelector('#start-flow')?.addEventListener('click', () => {
@@ -272,10 +360,56 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
           if (!hasExisting) setDetailValue(state, step.ex.name, step.setIndex, field, String(startValue))
           mountWheelPicker(mask, {
             min, max, value: startValue,
-            onChange: v => setDetailValue(state, step.ex.name, step.setIndex, field, String(v)),
+            onChange: v => {
+              setDetailValue(state, step.ex.name, step.setIndex, field, String(v))
+              persist()
+            },
           })
         }
-        mountFlowWheel(`#flow-weight-wheel-${i}`, 'weight', WHEEL_WEIGHT_MIN, WHEEL_WEIGHT_MAX)
+
+        // Weight is two wheels sharing one field: a whole-kg wheel plus a
+        // narrow 0/0.5 wheel next to it, so plates can be dialled in to
+        // the nearest half kilo. Both read/write the same 'weight' value
+        // as a single decimal (e.g. "62.5") rather than as separate
+        // fields — each wheel's onChange re-reads the CURRENT weight from
+        // state rather than closing over a value captured at mount time,
+        // so touching one wheel can never clobber a change already made
+        // on the other in the same visit to this panel.
+        function mountFlowWeightWheels(wholeId, halfId, field) {
+          const wholeMask = sheet.querySelector(wholeId)
+          const halfMask = sheet.querySelector(halfId)
+          if (!wholeMask && !halfMask) return
+          const hasExisting = existing?.[field] !== undefined && existing[field] !== ''
+          const fallback = prevSet?.[field] !== undefined && prevSet[field] !== '' ? Number(prevSet[field]) : 0
+          const startTotal = hasExisting ? Number(existing[field]) : fallback
+          if (!hasExisting) setDetailValue(state, step.ex.name, step.setIndex, field, String(startTotal))
+
+          function currentTotal() {
+            const v = state.detail?.exercises?.[step.ex.name]?.[step.setIndex]?.[field]
+            return v !== undefined && v !== '' ? Number(v) : 0
+          }
+          function setTotal(whole, half) {
+            // Round to kill float artifacts like 62.49999999999999.
+            const total = Math.round((whole + half * 0.5) * 2) / 2
+            setDetailValue(state, step.ex.name, step.setIndex, field, String(total))
+            persist()
+          }
+
+          if (wholeMask) {
+            mountWheelPicker(wholeMask, {
+              min: WHEEL_WEIGHT_MIN, max: WHEEL_WEIGHT_MAX, value: Math.floor(startTotal),
+              onChange: v => setTotal(v, currentTotal() % 1 >= 0.5 ? 1 : 0),
+            })
+          }
+          if (halfMask) {
+            mountWheelPicker(halfMask, {
+              min: WHEEL_HALF_MIN, max: WHEEL_HALF_MAX, value: startTotal % 1 >= 0.5 ? 1 : 0,
+              format: formatHalfKg,
+              onChange: v => setTotal(Math.floor(currentTotal()), v),
+            })
+          }
+        }
+        mountFlowWeightWheels(`#flow-weight-wheel-${i}`, `#flow-half-wheel-${i}`, 'weight')
         mountFlowWheel(`#flow-reps-wheel-${i}`, 'reps', WHEEL_REPS_MIN, WHEEL_REPS_MAX)
       })
 
@@ -312,10 +446,16 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
 
         function goTo(index, animate = true) {
           index = clampIndex(index)
+          // Distinguish a real step change from the initial no-animation
+          // mount call and from snapping back to the step you were
+          // already on — only an actual move onto the next/previous
+          // exercise should trigger a save.
+          const changed = index !== state.flow.stepIndex
           state.flow.stepIndex = index
           track.style.transition = animate ? `transform ${SLIDE_MS}ms ${SLIDE_EASE}` : 'none'
           track.style.transform = `translateX(${centerOffset() - index * (panelW + GAP)}px)`
           updateChrome(index)
+          if (changed) persist()
         }
 
         // Land on the step the flow actually opened on — no transition,
@@ -391,6 +531,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         setDetailValue(state, step.ex.name, step.setIndex, 'done', !wasDone)
         btn.classList.toggle('checked', !wasDone)
         btn.textContent = !wasDone ? '✓ Done' : 'Mark done'
+        persist()
       })
     }
 
@@ -402,6 +543,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
         if (idx >= 0) state.supplements.splice(idx, 1)
         else state.supplements.push(name)
         render()
+        persist()
       })
     })
 
@@ -410,6 +552,7 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
       opt.addEventListener('click', () => {
         state.fasting = opt.dataset.value
         render()
+        persist()
       })
     })
 
@@ -442,16 +585,13 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
   }
 
   function save(withCelebration) {
-    const rec = {
-      date,
-      activityId: state.activityId,
-      activityType: state.activityType,
-      activityLabel: state.activityLabel,
-      completed: state.completed,
-      detail: state.detail,
-      supplements: state.supplements,
-      fasting: state.fasting,
-    }
+    const rec = buildRecord()
+    // Don't clear the local draft here — onSave's own cloudDb write
+    // isn't awaited by this function, so it may still be in flight (or
+    // stuck offline) by the time this returns. The draft is only ever
+    // cleared once recoverDayDrafts() has confirmed a successful cloud
+    // write for it, on this boot or a later one.
+    saveLocalDraft(rec)
     onSave(rec, withCelebration && state.completed)
   }
 
@@ -463,8 +603,19 @@ export function renderDaySheet({ plan, dayRecords, date, onClose, onSave }) {
 function setDetailValue(state, exName, setIndex, field, value) {
   if (!state.detail.exercises) state.detail.exercises = {}
   if (!state.detail.exercises[exName]) state.detail.exercises[exName] = []
-  if (!state.detail.exercises[exName][setIndex]) state.detail.exercises[exName][setIndex] = {}
-  state.detail.exercises[exName][setIndex][field] = value
+  const arr = state.detail.exercises[exName]
+  const idx = Number(setIndex)
+  // Writing straight to `idx` when it's beyond the array's current
+  // length (e.g. marking round 3 of a circuit's done-tracked exercise
+  // without ever touching round 2 — now reachable since rounds no
+  // longer have to be visited in order) would leave a genuine hole at
+  // the skipped index rather than an empty object. A hole serializes as
+  // `null` and, worse, Firestore's client SDK rejects arrays containing
+  // one outright — fill every skipped slot with a real empty object.
+  for (let i = arr.length; i <= idx; i++) {
+    if (!arr[i]) arr[i] = {}
+  }
+  arr[idx][field] = value
 }
 
 function renderActivitySummary(state) {
@@ -556,12 +707,14 @@ function buildFlowSteps(blocks) {
     if (block.kind === 'circuit') {
       // Round count is the block's own `rounds`, not any per-exercise
       // defaultSets (circuit members don't carry their own set count —
-      // the whole group repeats together). A done/checkbox exercise
-      // nested in a circuit still only needs marking once, though.
+      // the whole group repeats together). That includes a done/checkbox
+      // exercise (e.g. Plank, Dead bugs) nested in the circuit: the point
+      // of a circuit is that every member gets done once per round, so
+      // it repeats exactly like its weight/reps neighbours — no special
+      // case here.
       const rounds = block.rounds ?? 1
       for (let round = 0; round < rounds; round++) {
         for (const ex of block.exercises) {
-          if (isDone(ex) && round > 0) continue
           steps.push({ ex, setIndex: round, kind: kindOf(ex), block })
         }
       }
@@ -694,7 +847,7 @@ function renderFlowPanel(step, i, state, dayRecords, date) {
     <div class="flow-panel" data-index="${i}">
       ${isCircuit ? `<div class="flow-circuit-label">${escHtml(block.label || 'Circuit')}</div>` : ''}
       <div class="flow-exercise-name">${escHtml(ex.name)}</div>
-      ${kind === 'value' && setCount > 1 ? `<div class="flow-set-label">${isCircuit ? 'Round' : 'Set'} ${setIndex + 1} of ${setCount}</div>` : ''}
+      ${setCount > 1 ? `<div class="flow-set-label">${isCircuit ? 'Round' : 'Set'} ${setIndex + 1} of ${setCount}</div>` : ''}
       ${ex.repRange ? `<div class="exercise-target">${ex.repRange[0]}–${ex.repRange[1]} reps</div>` : ''}
       ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
       ${prevHint}
@@ -709,6 +862,9 @@ function renderFlowPanel(step, i, state, dayRecords, date) {
             <div class="flow-wheel-col">
               <div id="flow-weight-wheel-${i}"></div>
               <div class="flow-wheel-unit">kg</div>
+            </div>
+            <div class="flow-wheel-col flow-wheel-col-half">
+              <div id="flow-half-wheel-${i}"></div>
             </div>
           ` : ''}
           ${tracksReps ? `
@@ -732,10 +888,27 @@ function computeNextLabel(steps, stepIndex) {
   return step.block.kind === 'circuit' ? 'Next round' : 'Next set'
 }
 
-function renderExerciseRow(ex, state, dayRecords, date) {
-  const defaultCount = ex.defaultSets ?? 1
+// `roundsOverride` is a circuit's own round count, passed down by
+// renderBlock — circuit members don't carry their own set count (the
+// whole group repeats together), so without this a fresh, never-logged
+// circuit exercise would fall back to a single set/checkbox regardless
+// of how many rounds the circuit actually has.
+function renderExerciseRow(ex, state, dayRecords, date, roundsOverride) {
+  const defaultCount = roundsOverride ?? (ex.defaultSets ?? 1)
   const emptySet = ex.track?.includes('done') ? { done: false } : { weight: '', reps: '' }
-  const sets = state.detail?.exercises?.[ex.name] ?? Array.from({ length: defaultCount }, () => ({ ...emptySet }))
+  // Not a plain `?? fallback` — a done-tracked circuit exercise only
+  // gets a real array entry for a round once its checkbox is actually
+  // toggled (unlike weight/reps wheels, which seed every round's slot
+  // the moment the flow opens), so the real array can be genuinely
+  // shorter than the round count even after some rounds are logged.
+  // Build the array by index, filling gaps with an empty placeholder,
+  // rather than only falling back when nothing exists yet — but never
+  // shorter than the real array, or a sequential exercise with an
+  // extra set added via "+ Set" beyond its own defaultSets would have
+  // that extra set truncated from view.
+  const realSets = state.detail?.exercises?.[ex.name]
+  const length = Math.max(defaultCount, realSets?.length ?? 0)
+  const sets = Array.from({ length }, (_, si) => realSets?.[si] ?? { ...emptySet })
   const tracksWeight = ex.track?.includes('weight')
   const tracksReps = ex.track?.includes('reps')
   const tracksDone = ex.track?.includes('done')
@@ -748,10 +921,14 @@ function renderExerciseRow(ex, state, dayRecords, date) {
       ${ex.target ? `<div class="exercise-target">${escHtml(ex.target)}</div>` : ''}
       ${tracksDone ? `
         ${doneHint}
-        <label class="done-row">
-          <input type="checkbox" ${sets[0]?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" class="set-done" />
-          <span class="done-label">Done</span>
-        </label>
+        <div class="done-rows">
+          ${sets.map((set, si) => `
+            <label class="done-row">
+              <input type="checkbox" ${set?.done ? 'checked' : ''} data-ex="${escHtml(ex.name)}" data-set="${si}" class="set-done" />
+              <span class="done-label">${sets.length > 1 ? `Round ${si + 1}` : 'Done'}</span>
+            </label>
+          `).join('')}
+        </div>
       ` : `
         <div class="sets-row">
           ${sets.map((set, si) => {
@@ -761,7 +938,7 @@ function renderExerciseRow(ex, state, dayRecords, date) {
               ${prevHint}
               <div class="set-input-group">
                 ${tracksWeight ? `
-                  <input type="number" class="set-input set-weight" inputmode="decimal" placeholder="—" value="${escHtml(set.weight ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
+                  <input type="number" class="set-input set-weight" inputmode="decimal" step="0.5" placeholder="—" value="${escHtml(set.weight ?? '')}" data-ex="${escHtml(ex.name)}" data-set="${si}" />
                   <span class="set-input-label">kg</span>
                   <span class="set-input-label" style="margin:0 2px">×</span>
                 ` : ''}
@@ -795,7 +972,7 @@ function renderBlock(block, state, dayRecords, date) {
         ${block.label ? `<span class="circuit-block-label">${escHtml(block.label)}</span>` : ''}
       </div>
       <div class="circuit-block-exercises">
-        ${block.exercises.map(ex => renderExerciseRow(ex, state, dayRecords, date)).join('')}
+        ${block.exercises.map(ex => renderExerciseRow(ex, state, dayRecords, date, rounds)).join('')}
       </div>
     </div>
   `
