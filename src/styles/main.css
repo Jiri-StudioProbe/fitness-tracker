@@ -1600,6 +1600,122 @@ html, body {
   margin-top: 4px;
 }
 
+/* ── Sign in ──────────────────────────────────────────────────────────
+   The one screen in the app that isn't dark — a light, brand-forward
+   entry point (per the Figma redesign) before the workout-log UI takes
+   over. Everything below is scoped under .signin-screen so none of it
+   leaks into the app's normal dark theme. */
+.signin-screen {
+  background: #FFFFFF;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 56px;
+  padding: calc(36px + var(--safe-top)) 0 calc(36px + var(--safe-bot));
+  overflow-x: hidden; /* the wordmark deliberately bleeds past the edges */
+  overflow-y: auto;
+}
+
+/* Approximates the hand-brushed "TRAiN" wordmark from the Figma mock as
+   styled type (see the note on this PR) — oversized, tilted, and wider
+   than the viewport so it bleeds off both edges the same way the
+   original artwork does. */
+.signin-wordmark {
+  font-family: 'Archivo', 'Arial Black', sans-serif;
+  font-weight: 900;
+  font-size: 19vw;
+  line-height: 0.85;
+  color: var(--accent2);
+  letter-spacing: -0.01em;
+  transform: rotate(-8deg);
+  white-space: nowrap;
+  width: 100%;
+  text-align: center;
+}
+
+.signin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 340px;
+  padding: 0 20px;
+}
+
+.signin-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1.5px solid #E5E5E5;
+}
+
+.signin-input-row svg { flex-shrink: 0; color: var(--accent2); }
+
+.signin-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 16px;
+  color: #0A0A0A;
+}
+
+.signin-input::placeholder { color: #A8A8A8; }
+
+.signin-btn {
+  width: 100%;
+  min-height: 56px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent2);
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.signin-btn:active { opacity: 0.75; }
+.signin-btn:disabled { opacity: 0.5; cursor: default; }
+
+.signin-ghost-btn {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #E5E5E5;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #0A0A0A;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.signin-ghost-btn:active { background: #F5F5F5; }
+
+.signin-sent-text {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #333333;
+  text-align: center;
+}
+
+.signin-sent-text strong { color: #0A0A0A; }
+
+.signin-error {
+  font-size: 13px;
+  color: #C0392B;
+  text-align: center;
+}
+
 /* ── Animations ── */
 @keyframes fade-in {
   from { opacity: 0 }
