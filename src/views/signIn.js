@@ -4,38 +4,42 @@ import { sendMagicLink } from '../cloud/auth.js'
 // password to manage, and Firebase Auth keeps you signed in on this
 // device afterward (see the note in cloud/auth.js) — this screen should
 // be rare once you're set up, not a per-session gate.
+//
+// Visually distinct from the rest of the app on purpose (see the Figma
+// redesign this was ported from): a light, brand-forward entry screen
+// rather than the dark workout-log theme — see .signin-* in main.css.
+// The original mock used a hand-brushed "TRAiN" wordmark graphic; that
+// asset wasn't available to port directly, so it's approximated here
+// as oversized, tilted display type in the same orange.
 export function renderSignInView() {
   const el = document.createElement('div')
-  el.className = 'screen'
+  el.className = 'signin-screen'
 
   let sentTo = null
 
+  const mailIcon = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 5h18v14H3V5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M3 5.5l9 7 9-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+
   function draw() {
     el.innerHTML = `
-      <div class="content" style="justify-content:center;flex:1">
-        <div class="card" style="max-width:360px;margin:0 auto;width:100%">
-          <div class="section-label" style="margin-bottom:8px">Sign in</div>
-          ${sentTo
-            ? `
-              <p style="font-size:15px;line-height:1.6;color:var(--text)">
-                Check <strong>${escHtml(sentTo)}</strong> for a sign-in link. Open it on this
-                device to continue — you'll stay signed in after that.
-              </p>
-              <button class="btn btn-ghost btn-full" id="signin-retry" style="margin-top:16px">Use a different email</button>
-            `
-            : `
-              <p class="pb-hint" style="margin:0 0 16px">
-                Your training log lives in the cloud now, tied to your account.
-              </p>
-              <div class="pb-field">
-                <label>Email</label>
-                <input type="email" id="signin-email" class="pb-input" placeholder="you@example.com" autocomplete="email" />
-              </div>
-              <div id="signin-error" class="pb-validation bad" style="display:none;margin-bottom:14px"></div>
-              <button class="btn btn-primary btn-full" id="signin-send">Send sign-in link</button>
-            `
-          }
-        </div>
+      <div class="signin-wordmark">TRAiN</div>
+      <div class="signin-card">
+        ${sentTo
+          ? `
+            <p class="signin-sent-text">
+              Check <strong>${escHtml(sentTo)}</strong> for a sign-in link. Open it on this
+              device to continue — you'll stay signed in after that.
+            </p>
+            <button class="signin-ghost-btn" id="signin-retry">Use a different email</button>
+          `
+          : `
+            <div class="signin-input-row">
+              ${mailIcon}
+              <input type="email" id="signin-email" class="signin-input" placeholder="you@example.com" autocomplete="email" />
+            </div>
+            <div id="signin-error" class="signin-error" style="display:none"></div>
+            <button class="signin-btn" id="signin-send">Email link</button>
+          `
+        }
       </div>
     `
 
@@ -56,7 +60,7 @@ export function renderSignInView() {
         errBox.textContent = friendlyAuthError(err)
         errBox.style.display = ''
         btn.disabled = false
-        btn.textContent = 'Send sign-in link'
+        btn.textContent = 'Email link'
       }
     })
 
